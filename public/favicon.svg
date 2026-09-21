@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Duplo Build">
+  <rect width="64" height="64" rx="16" fill="#7b3fe4"/>
+  <rect x="12" y="26" width="40" height="22" rx="4" fill="#ff6bcb"/>
+  <circle cx="24" cy="24" r="6" fill="#ff9ad9"/>
+  <circle cx="40" cy="24" r="6" fill="#ff9ad9"/>
+</svg>

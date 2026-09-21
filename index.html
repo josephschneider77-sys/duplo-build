@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#7b3fe4" />
+    <title>Duplo Build — Joe's chunky bricks</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Nunito:wght@600;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <canvas id="stage" aria-label="Brick building scene"></canvas>
+
+    <div id="hud">
+      <header class="topbar">
+        <div class="brand">
+          <span class="sparkle" aria-hidden="true">✦</span>
+          <div>
+            <h1>Duplo Build</h1>
+            <p>Joe Schneider's chunky brick studio</p>
+          </div>
+        </div>
+        <div class="tools">
+          <button type="button" class="tool" data-action="rotate">Rotate</button>
+          <button type="button" class="tool" data-action="delete">Delete</button>
+          <button type="button" class="tool" data-action="undo">Undo</button>
+          <button type="button" class="tool danger" data-action="clear">Clear</button>
+        </div>
+      </header>
+
+      <div class="toast" data-toast data-show="false" role="status" aria-live="polite"></div>
+
+      <footer class="dock">
+        <div class="dock-row">
+          <span class="dock-label">Bricks</span>
+          <div class="brick-row" data-bricks></div>
+        </div>
+        <div class="dock-row">
+          <span class="dock-label">Colors</span>
+          <div class="color-row" data-colors></div>
+        </div>
+        <p class="hint">
+          <span data-count>Empty board</span>
+          · Tap to place · Drag to look around · R spins · builds save on this device
+        </p>
+      </footer>
+    </div>
+
+    <div id="webgl-fallback" hidden>
+      <h2>Need a 3D-ready browser</h2>
+      <p>Duplo Build uses WebGL for the brick scene. Try a current Chrome, Safari, Firefox, or Edge window.</p>
+    </div>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

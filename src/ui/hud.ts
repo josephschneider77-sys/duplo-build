@@ -17,6 +17,7 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
       btn.type = 'button'
       btn.className = 'brick-btn'
       btn.dataset.kind = def.kind
+      btn.title = def.hint
       btn.setAttribute('aria-label', `${def.label} ${def.hint}`)
       btn.innerHTML = `
         <span class="mini" data-shape="${def.kind}" aria-hidden="true"></span>

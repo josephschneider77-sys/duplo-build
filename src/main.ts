@@ -1,4 +1,5 @@
 import { unlockAudio } from './audio.ts'
+import { BRICK_CATALOG } from './bricks/catalog.ts'
 import { mountHud } from './ui/hud.ts'
 import { createWorld } from './world.ts'
 import './style.css'
@@ -53,9 +54,12 @@ if (!webglOk()) {
     } else if (key === 'escape') {
       world.setMode('place')
       ui.refresh()
-    } else if (key >= '1' && key <= '4') {
-      const def = ['brick2x2', 'brick2x4', 'brick1x2', 'plate4x4'][Number(key) - 1]
-      if (def) world.setKind(def as 'brick2x2' | 'brick2x4' | 'brick1x2' | 'plate4x4')
+    } else if (key >= '1' && key <= '9') {
+      const def = BRICK_CATALOG[Number(key) - 1]
+      if (def) world.setKind(def.kind)
+    } else if (key === '0') {
+      const def = BRICK_CATALOG[9]
+      if (def) world.setKind(def.kind)
     }
   })
 }

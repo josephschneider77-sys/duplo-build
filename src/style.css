@@ -221,7 +221,22 @@ body {
   text-transform: uppercase;
 }
 
-.brick-row,
+.brick-row {
+  display: grid;
+  grid-template-rows: auto auto;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(64px, max-content);
+  gap: 6px 7px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  min-width: 0;
+  padding: 4px 2px 6px;
+  touch-action: pan-x;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 .color-row {
   display: flex;
   gap: 8px;
@@ -235,14 +250,20 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: flex-end;
   gap: 4px;
-  min-width: 76px;
-  padding: 8px 10px 6px;
-  border-radius: 18px;
+  min-width: 68px;
+  min-height: 58px;
+  padding: 8px 8px 5px;
+  border-radius: 16px;
+  scroll-snap-align: start;
 }
 
 .brick-label {
-  font-size: 0.78rem;
+  font-size: 0.7rem;
+  line-height: 1.15;
+  text-align: center;
+  max-width: 72px;
 }
 
 .mini {
@@ -251,6 +272,7 @@ body {
   border-radius: 5px;
   background: #9b5de5;
   position: relative;
+  flex: none;
   box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.12);
 }
 
@@ -277,6 +299,20 @@ body {
   box-shadow: 12px 0 0 #b388f9;
 }
 
+.mini[data-shape='brick2x3'] {
+  width: 50px;
+  height: 24px;
+}
+.mini[data-shape='brick2x3']::before {
+  left: 8px;
+  box-shadow: 12px 0 0 #b388f9, 24px 0 0 #b388f9;
+}
+.mini[data-shape='brick2x3']::after {
+  left: 8px;
+  top: 10px;
+  box-shadow: 12px 0 0 #b388f9, 24px 0 0 #b388f9;
+}
+
 .mini[data-shape='brick2x4'] {
   width: 54px;
   height: 22px;
@@ -286,6 +322,49 @@ body {
   box-shadow: 11px 0 0 #b388f9, 22px 0 0 #b388f9, 33px 0 0 #b388f9;
 }
 .mini[data-shape='brick2x4']::after { display: none; }
+
+.mini[data-shape='brick2x6'] {
+  width: 58px;
+  height: 18px;
+}
+.mini[data-shape='brick2x6']::before {
+  width: 6px;
+  height: 6px;
+  left: 4px;
+  top: -3px;
+  box-shadow: 8px 0 0 #b388f9, 16px 0 0 #b388f9, 24px 0 0 #b388f9, 32px 0 0 #b388f9, 40px 0 0 #b388f9;
+}
+.mini[data-shape='brick2x6']::after { display: none; }
+
+.mini[data-shape='brick2x8'] {
+  width: 60px;
+  height: 16px;
+}
+.mini[data-shape='brick2x8']::before {
+  width: 5px;
+  height: 5px;
+  left: 3px;
+  top: -3px;
+  box-shadow:
+    7px 0 0 #b388f9,
+    14px 0 0 #b388f9,
+    21px 0 0 #b388f9,
+    28px 0 0 #b388f9,
+    35px 0 0 #b388f9,
+    42px 0 0 #b388f9,
+    49px 0 0 #b388f9;
+}
+.mini[data-shape='brick2x8']::after { display: none; }
+
+.mini[data-shape='brick1x1'] {
+  width: 22px;
+  height: 22px;
+}
+.mini[data-shape='brick1x1']::before {
+  left: 7px;
+  box-shadow: none;
+}
+.mini[data-shape='brick1x1']::after { display: none; }
 
 .mini[data-shape='brick1x2'] {
   width: 40px;
@@ -297,10 +376,73 @@ body {
 }
 .mini[data-shape='brick1x2']::after { display: none; }
 
+.mini[data-shape='brick1x4'] {
+  width: 52px;
+  height: 16px;
+}
+.mini[data-shape='brick1x4']::before {
+  left: 6px;
+  width: 6px;
+  height: 6px;
+  top: -3px;
+  box-shadow: 11px 0 0 #b388f9, 22px 0 0 #b388f9, 33px 0 0 #b388f9;
+}
+.mini[data-shape='brick1x4']::after { display: none; }
+
+.mini[data-shape='plate1x2'],
+.mini[data-shape='plate2x2'],
+.mini[data-shape='plate2x4'],
+.mini[data-shape='plate4x4'],
+.mini[data-shape='plate4x8'] {
+  background: #ff6bcb;
+}
+
+.mini[data-shape='plate1x2'] {
+  width: 32px;
+  height: 10px;
+}
+.mini[data-shape='plate1x2']::before {
+  background: #ff9ad9;
+  width: 5px;
+  height: 5px;
+  left: 6px;
+  top: -3px;
+  box-shadow: 12px 0 0 #ff9ad9;
+}
+.mini[data-shape='plate1x2']::after { display: none; }
+
+.mini[data-shape='plate2x2'] {
+  width: 28px;
+  height: 12px;
+}
+.mini[data-shape='plate2x2']::before,
+.mini[data-shape='plate2x2']::after {
+  background: #ff9ad9;
+  width: 6px;
+  height: 6px;
+  left: 5px;
+  box-shadow: 11px 0 0 #ff9ad9;
+}
+.mini[data-shape='plate2x2']::before { top: -3px; }
+.mini[data-shape='plate2x2']::after { top: 4px; }
+
+.mini[data-shape='plate2x4'] {
+  width: 48px;
+  height: 12px;
+}
+.mini[data-shape='plate2x4']::before {
+  background: #ff9ad9;
+  width: 6px;
+  height: 6px;
+  left: 5px;
+  top: -3px;
+  box-shadow: 10px 0 0 #ff9ad9, 20px 0 0 #ff9ad9, 30px 0 0 #ff9ad9;
+}
+.mini[data-shape='plate2x4']::after { display: none; }
+
 .mini[data-shape='plate4x4'] {
   width: 42px;
   height: 14px;
-  background: #ff6bcb;
 }
 .mini[data-shape='plate4x4']::before,
 .mini[data-shape='plate4x4']::after {
@@ -311,6 +453,64 @@ body {
   left: 6px;
   box-shadow: 9px 0 0 #ff9ad9, 18px 0 0 #ff9ad9, 27px 0 0 #ff9ad9;
 }
+
+.mini[data-shape='plate4x8'] {
+  width: 58px;
+  height: 18px;
+}
+.mini[data-shape='plate4x8']::before,
+.mini[data-shape='plate4x8']::after {
+  background: #ff9ad9;
+  width: 5px;
+  height: 5px;
+  left: 4px;
+  box-shadow: 7px 0 0 #ff9ad9, 14px 0 0 #ff9ad9, 21px 0 0 #ff9ad9, 28px 0 0 #ff9ad9, 35px 0 0 #ff9ad9, 42px 0 0 #ff9ad9;
+}
+.mini[data-shape='plate4x8']::before { top: -2px; }
+.mini[data-shape='plate4x8']::after { top: 8px; }
+
+.mini[data-shape='arch2x4'] {
+  width: 50px;
+  height: 24px;
+  background: #9b5de5;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 72% 100%, 72% 42%, 28% 42%, 28% 100%, 0 100%);
+  border-radius: 4px 4px 0 0;
+}
+.mini[data-shape='arch2x4']::before {
+  left: 6px;
+  box-shadow: 11px 0 0 #b388f9, 22px 0 0 #b388f9, 33px 0 0 #b388f9;
+}
+.mini[data-shape='arch2x4']::after { display: none; }
+
+.mini[data-shape='slope2x3'] {
+  width: 46px;
+  height: 26px;
+  background: #ff9f1c;
+  clip-path: polygon(0 0, 18% 0, 100% 100%, 0 100%);
+  border-radius: 0;
+  box-shadow: none;
+}
+.mini[data-shape='slope2x3']::before {
+  background: #ffc56e;
+  left: 4px;
+  top: -4px;
+  box-shadow: 10px 0 0 #ffc56e;
+}
+.mini[data-shape='slope2x3']::after { display: none; }
+
+.mini[data-shape='round2x2'] {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: #9b5de5;
+}
+.mini[data-shape='round2x2']::before,
+.mini[data-shape='round2x2']::after {
+  left: 6px;
+  box-shadow: 8px 0 0 #b388f9;
+}
+.mini[data-shape='round2x2']::before { top: 4px; }
+.mini[data-shape='round2x2']::after { top: 14px; }
 
 .swatch {
   width: 40px;
@@ -384,6 +584,30 @@ body {
 
   .hint {
     font-size: 0.68rem;
+  }
+
+  .brick-row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-flow: row;
+    grid-auto-columns: unset;
+    overflow-x: visible;
+    overflow-y: visible;
+    scroll-snap-type: none;
+    gap: 6px;
+  }
+
+  .brick-btn {
+    min-width: 0;
+    width: auto;
+    min-height: 52px;
+    padding: 6px 4px 4px;
+  }
+
+  .brick-label {
+    font-size: 0.64rem;
+    max-width: none;
   }
 
   .toast {

@@ -3,17 +3,114 @@ import { BASEPLATE_STUDS, BASEPLATE_THICKNESS, PITCH, STUD_HEIGHT, STUD_RADIUS, 
 import type { BrickDef } from './catalog.ts'
 
 const studGeometry = new THREE.CylinderGeometry(STUD_RADIUS, STUD_RADIUS, STUD_HEIGHT, 22)
-const bodyGeos = new Map<string, THREE.BoxGeometry>()
+const bodyGeos = new Map<string, THREE.BufferGeometry>()
 
-function bodyGeometry(def: BrickDef): THREE.BoxGeometry {
-  const key = `${def.studsX}x${def.studsZ}x${def.height}`
+function cached(key: string, make: () => THREE.BufferGeometry): THREE.BufferGeometry {
   let geo = bodyGeos.get(key)
   if (!geo) {
-    const { w, d } = bodySize(def.studsX, def.studsZ)
-    geo = new THREE.BoxGeometry(w, def.height, d)
+    geo = make()
     bodyGeos.set(key, geo)
   }
   return geo
+}
+
+function rectGeometry(def: BrickDef): THREE.BufferGeometry {
+  return cached(`rect:${def.studsX}x${def.studsZ}x${def.height}`, () => {
+    const { w, d } = bodySize(def.studsX, def.studsZ)
+    return new THREE.BoxGeometry(w, def.height, d)
+  })
+}
+
+/** Full-height back, thin lip at +X — a chunky Duplo-style ramp. */
+function slopeGeometry(def: BrickDef): THREE.BufferGeometry {
+  return cached(`slope:${def.studsX}x${def.studsZ}x${def.height}`, () => {
+    const { w, d } = bodySize(def.studsX, def.studsZ)
+    const geo = new THREE.BoxGeometry(w, def.height, d)
+    const pos = geo.attributes.position
+    const lip = Math.min(2.4, def.height * 0.14)
+    for (let i = 0; i < pos.count; i++) {
+      if (pos.getX(i) > 0.001 && pos.getY(i) > 0) {
+        pos.setY(i, -def.height / 2 + lip)
+      }
+    }
+    pos.needsUpdate = true
+    geo.computeVertexNormals()
+    return geo
+  })
+}
+
+function shade(mesh: THREE.Mesh, ghost?: boolean): void {
+  mesh.castShadow = !ghost
+  mesh.receiveShadow = !ghost
+}
+
+function addStuds(
+  group: THREE.Group,
+  def: BrickDef,
+  mat: THREE.Material,
+  ghost: boolean | undefined,
+  keep?: (ix: number, iz: number) => boolean,
+): void {
+  const studY = def.height + STUD_HEIGHT / 2
+  for (let ix = 0; ix < def.studsX; ix++) {
+    for (let iz = 0; iz < def.studsZ; iz++) {
+      if (keep && !keep(ix, iz)) continue
+      const stud = new THREE.Mesh(studGeometry, mat)
+      stud.position.set(
+        (ix + 0.5) * PITCH - (def.studsX * PITCH) / 2,
+        studY,
+        (iz + 0.5) * PITCH - (def.studsZ * PITCH) / 2,
+      )
+      shade(stud, ghost)
+      group.add(stud)
+    }
+  }
+}
+
+function addRectBody(group: THREE.Group, def: BrickDef, mat: THREE.Material, ghost?: boolean): void {
+  const body = new THREE.Mesh(rectGeometry(def), mat)
+  body.position.y = def.height / 2
+  shade(body, ghost)
+  group.add(body)
+}
+
+function addArchBody(group: THREE.Group, def: BrickDef, mat: THREE.Material, ghost?: boolean): void {
+  const { w, d } = bodySize(def.studsX, def.studsZ)
+  const pillarW = bodySize(1, def.studsZ).w
+  const openingH = def.height * 0.7
+  const lintelH = def.height - openingH
+
+  const pillarGeo = cached(`arch-pillar:${pillarW}:${def.height}:${d}`, () => new THREE.BoxGeometry(pillarW, def.height, d))
+  const lintelGeo = cached(`arch-lintel:${w}:${lintelH}:${d}`, () => new THREE.BoxGeometry(w, lintelH, d))
+
+  const left = new THREE.Mesh(pillarGeo, mat)
+  left.position.set(-w / 2 + pillarW / 2, def.height / 2, 0)
+  const right = new THREE.Mesh(pillarGeo, mat)
+  right.position.set(w / 2 - pillarW / 2, def.height / 2, 0)
+  const lintel = new THREE.Mesh(lintelGeo, mat)
+  lintel.position.set(0, openingH + lintelH / 2, 0)
+
+  for (const mesh of [left, right, lintel]) {
+    shade(mesh, ghost)
+    group.add(mesh)
+  }
+}
+
+function addSlopeBody(group: THREE.Group, def: BrickDef, mat: THREE.Material, ghost?: boolean): void {
+  const body = new THREE.Mesh(slopeGeometry(def), mat)
+  body.position.y = def.height / 2
+  shade(body, ghost)
+  group.add(body)
+}
+
+function addRoundBody(group: THREE.Group, def: BrickDef, mat: THREE.Material, ghost?: boolean): void {
+  const { w, d } = bodySize(def.studsX, def.studsZ)
+  const radius = Math.min(w, d) / 2
+  const geo = cached(`round:${radius}:${def.height}`, () => new THREE.CylinderGeometry(radius, radius, def.height, 36))
+  const body = new THREE.Mesh(geo, mat)
+  body.position.y = def.height / 2
+  shade(body, ghost)
+  group.add(body)
 }
 
 export function plasticMaterial(hex: number, opts?: { ghost?: boolean; valid?: boolean }): THREE.MeshStandardMaterial {
@@ -41,25 +138,18 @@ export function createBrickGroup(
   group.name = def.kind
   const mat = plasticMaterial(hex, opts)
   const { w, d } = bodySize(def.studsX, def.studsZ)
+  const ghost = opts?.ghost
 
-  const body = new THREE.Mesh(bodyGeometry(def), mat)
-  body.position.y = def.height / 2
-  body.castShadow = !opts?.ghost
-  body.receiveShadow = !opts?.ghost
-  group.add(body)
+  if (def.shape === 'arch') addArchBody(group, def, mat, ghost)
+  else if (def.shape === 'slope') addSlopeBody(group, def, mat, ghost)
+  else if (def.shape === 'round') addRoundBody(group, def, mat, ghost)
+  else addRectBody(group, def, mat, ghost)
 
-  const studY = def.height + STUD_HEIGHT / 2
-  for (let ix = 0; ix < def.studsX; ix++) {
-    for (let iz = 0; iz < def.studsZ; iz++) {
-      const stud = new THREE.Mesh(studGeometry, mat)
-      stud.position.set(
-        (ix + 0.5) * PITCH - (def.studsX * PITCH) / 2,
-        studY,
-        (iz + 0.5) * PITCH - (def.studsZ * PITCH) / 2,
-      )
-      stud.castShadow = !opts?.ghost
-      group.add(stud)
-    }
+  if (def.shape === 'slope') {
+    // Studs sit on the tall back column so the ramp stays readable.
+    addStuds(group, def, mat, ghost, (ix) => ix === 0)
+  } else {
+    addStuds(group, def, mat, ghost)
   }
 
   // Keep a slightly larger pick volume than the visual gap.

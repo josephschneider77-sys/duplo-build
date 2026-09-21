@@ -77,7 +77,7 @@ function addRectBody(group: THREE.Group, def: BrickDef, mat: THREE.Material, gho
 function addArchBody(group: THREE.Group, def: BrickDef, mat: THREE.Material, ghost?: boolean): void {
   const { w, d } = bodySize(def.studsX, def.studsZ)
   const pillarW = bodySize(1, def.studsZ).w
-  const openingH = def.height * 0.58
+  const openingH = def.height * 0.7
   const lintelH = def.height - openingH
 
   const pillarGeo = cached(`arch-pillar:${pillarW}:${def.height}:${d}`, () => new THREE.BoxGeometry(pillarW, def.height, d))

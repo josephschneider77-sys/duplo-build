@@ -586,14 +586,28 @@ body {
     font-size: 0.68rem;
   }
 
+  .brick-row {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-rows: none;
+    grid-auto-flow: row;
+    grid-auto-columns: unset;
+    overflow-x: visible;
+    overflow-y: visible;
+    scroll-snap-type: none;
+    gap: 6px;
+  }
+
   .brick-btn {
-    min-width: 64px;
-    min-height: 56px;
-    padding: 6px 6px 4px;
+    min-width: 0;
+    width: auto;
+    min-height: 52px;
+    padding: 6px 4px 4px;
   }
 
   .brick-label {
-    font-size: 0.66rem;
+    font-size: 0.64rem;
+    max-width: none;
   }
 
   .toast {

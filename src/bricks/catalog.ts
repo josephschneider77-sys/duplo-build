@@ -158,7 +158,8 @@ export const BRICK_CATALOG: BrickDef[] = [
     hint: 'Bridge with a tunnel',
     studsX: 4,
     studsZ: 2,
-    height: BRICK_HEIGHT,
+    // Two bricks tall so the inverted-U tunnel reads from the side.
+    height: BRICK_HEIGHT * 2,
     shape: 'arch',
   },
   {

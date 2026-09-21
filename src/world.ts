@@ -244,10 +244,10 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
       return obj.userData.baseplate || obj.userData.brickId
     })
 
+    // Aim with the ground plane so one screen point always maps to the same
+    // cells (a brick-top hit is closer to the camera and would shift x/z).
     const point = new THREE.Vector3()
-    if (hits[0]) {
-      point.copy(hits[0].point)
-    } else if (!raycaster.ray.intersectPlane(groundPlane, point)) {
+    if (!raycaster.ray.intersectPlane(groundPlane, point)) {
       ghost.visible = false
       ghostPose = null
       return
@@ -255,8 +255,20 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
 
     const def = defFor(kind)
     const { w, d } = footprint(def.studsX, def.studsZ, rot)
-    const ox = Math.round(point.x / PITCH - w / 2)
-    const oz = Math.round(point.z / PITCH - d / 2)
+    let ox = Math.round(point.x / PITCH - w / 2)
+    let oz = Math.round(point.z / PITCH - d / 2)
+
+    const hitId = hits[0]?.object.userData.brickId as string | undefined
+    const hitBrick = hitId ? bricks.find((b) => b.id === hitId) : undefined
+    if (hitBrick) {
+      const hitDef = defFor(hitBrick.kind)
+      const hitFp = footprint(hitDef.studsX, hitDef.studsZ, hitBrick.rot)
+      if (w <= hitFp.w && d <= hitFp.d) {
+        ox = hitBrick.ox + Math.floor((hitFp.w - w) / 2)
+        oz = hitBrick.oz + Math.floor((hitFp.d - d) / 2)
+      }
+    }
+
     const seat = support(ox, oz, w, d)
     poseMesh(ghost, def, ox, oz, seat.y, rot)
     ghost.visible = true

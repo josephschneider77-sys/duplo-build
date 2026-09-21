@@ -8,7 +8,12 @@ Bricks use **Duplo-compatible proportions** (about 2× System / LEGO scale: 16-u
 
 ## Play
 
-1. Choose a brick: **2×2**, **2×4**, **1×2**, or **4×4 plate**.
+1. Choose a brick from the tray (swipe on a phone). The kit includes:
+   - Bricks: **2×2**, **2×3**, **2×4**, **2×6**, **2×8**, **1×1**, **1×2**, **1×4**
+   - Plates: **1×2**, **2×2**, **2×4**, **4×4**, **4×8**
+   - Specials: **2×4 arch** (bridge), **2×3 slope** (ramp), **2×2 round** (cylinder)
+   
+   A **4×2** brick is just a rotated **2×4** — use Rotate / `R`.
 2. Choose a color (eight bright + pastel plastics).
 3. Move over the green baseplate — a ghost brick snaps to the stud grid.
 4. Click or tap to place. Stack on top of existing bricks when the footprint is flat.

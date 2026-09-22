@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { BASEPLATE_STUDS, BASEPLATE_THICKNESS, BODY_GAP, BRICK_HEIGHT, PITCH, PLATE_HEIGHT, STUD_HEIGHT, STUD_RADIUS, bodySize, boardOrigin } from './dims.ts'
 import type { BrickDef } from './catalog.ts'
+import { faceCanvasTexture } from './paints.ts'
 
 /** Inner wall of the open stud. The pin is a second cylinder, not a boolean cut. */
 const STUD_INNER = 3.5
@@ -215,7 +216,7 @@ export function plasticMaterial(hex: number, opts?: { ghost?: boolean; valid?: b
 export function createBrickGroup(
   def: BrickDef,
   hex: number,
-  opts?: { ghost?: boolean; valid?: boolean },
+  opts?: { ghost?: boolean; valid?: boolean; paintId?: string },
 ): THREE.Group {
   const group = new THREE.Group()
   group.name = def.kind
@@ -235,9 +236,114 @@ export function createBrickGroup(
     addStuds(group, def, mat, ghost)
   }
 
+  attachFace(group, def, opts?.paintId, ghost)
+
   // Keep a slightly larger pick volume than the visual gap.
   group.userData.pickSize = { w, d, h: def.height }
   return group
+}
+
+/** Sticker sits just proud of the plastic so it does not z-fight the bevel. */
+const STICKER_GAP = 0.32
+
+/**
+ * ~70% of the face, centered. Aspect is capped so a long brick keeps one
+ * readable face in the middle instead of stretching eyes into a stripe.
+ */
+function facePanel(faceW: number, faceH: number): { w: number; h: number } {
+  let w = faceW * 0.7
+  let h = faceH * 0.7
+  const cap = 1.55
+  if (w > h * cap) w = h * cap
+  if (h > w * cap) h = w * cap
+  return { w, h }
+}
+
+function stickerPlane(w: number, h: number): THREE.BufferGeometry {
+  return cached(`sticker:${w.toFixed(2)}x${h.toFixed(2)}`, () => new THREE.PlaneGeometry(w, h))
+}
+
+function stickerMaterial(texture: THREE.CanvasTexture, ghost?: boolean): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    opacity: ghost ? 0.92 : 1,
+    depthWrite: false,
+    toneMapped: false,
+    premultipliedAlpha: false,
+  })
+}
+
+/**
+ * Rect and round: local +Z is the front, so Rotate carries the print.
+ * Slope: the tall vertical back (local −X). Arch: the solid +X end,
+ * the largest face without the doorway.
+ */
+function attachFace(group: THREE.Group, def: BrickDef, paintId: string | undefined, ghost?: boolean): void {
+  if (!paintId || paintId === 'none') return
+  const texture = faceCanvasTexture(paintId)
+  if (!texture) return
+  const mat = stickerMaterial(texture, ghost)
+  const mesh = new THREE.Mesh(faceGeometry(def), mat)
+  poseFace(mesh, def)
+  mesh.name = 'face'
+  mesh.userData.faceDecal = true
+  mesh.castShadow = false
+  mesh.receiveShadow = false
+  mesh.renderOrder = 2
+  group.add(mesh)
+  group.userData.faceMaterial = mat
+  group.userData.paintId = paintId
+}
+
+function faceGeometry(def: BrickDef): THREE.BufferGeometry {
+  if (def.shape === 'round') {
+    const { w, d } = bodySize(def.studsX, def.studsZ)
+    const radius = Math.min(w, d) / 2
+    const panel = facePanel(radius * 2, def.height)
+    const shellR = radius + STICKER_GAP
+    const theta = Math.min(Math.PI * 0.9, panel.w / shellR)
+    return cached(
+      `sticker-arc:${shellR.toFixed(2)}:${panel.h.toFixed(2)}:${theta.toFixed(3)}`,
+      () => new THREE.CylinderGeometry(shellR, shellR, panel.h, 24, 1, true, -theta / 2, theta),
+    )
+  }
+  const panel = facePanelFor(def)
+  return stickerPlane(panel.w, panel.h)
+}
+
+function facePanelFor(def: BrickDef): { w: number; h: number } {
+  if (def.shape === 'slope') {
+    const depth = 2 * PITCH - BODY_GAP
+    return facePanel(depth, def.height)
+  }
+  if (def.shape === 'arch') {
+    const depth = 2 * PITCH - BODY_GAP
+    return facePanel(depth, def.height)
+  }
+  const { w } = bodySize(def.studsX, def.studsZ)
+  return facePanel(w, def.height)
+}
+
+function poseFace(mesh: THREE.Mesh, def: BrickDef): void {
+  if (def.shape === 'round') {
+    mesh.position.y = def.height / 2
+    return
+  }
+  if (def.shape === 'slope') {
+    const width = 2 * PITCH - BODY_GAP
+    mesh.position.set(-width / 2 - STICKER_GAP, def.height / 2, 0)
+    mesh.rotation.y = -Math.PI / 2
+    return
+  }
+  if (def.shape === 'arch') {
+    const width = 4 * PITCH - BODY_GAP
+    mesh.position.set(width / 2 + STICKER_GAP, def.height / 2, 0)
+    mesh.rotation.y = Math.PI / 2
+    return
+  }
+  const { d } = bodySize(def.studsX, def.studsZ)
+  mesh.position.set(0, def.height / 2, d / 2 + STICKER_GAP)
 }
 
 export function createBaseplate(): THREE.Group {

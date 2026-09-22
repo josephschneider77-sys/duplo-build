@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { playBurst, playPop } from './audio.ts'
 import { BrickKind, defFor, footprint, type BrickDef } from './bricks/catalog.ts'
 import { colorById, DEFAULT_COLOR_ID } from './bricks/colors.ts'
+import { DEFAULT_PAINT_ID, isPaintId } from './bricks/paints.ts'
 import { PITCH, onBoard } from './bricks/dims.ts'
 import { createBaseplate, createBrickGroup, disableRaycast, tagBrick } from './bricks/geometry.ts'
 import { createBurst, type Burst } from './fx/burst.ts'
@@ -13,6 +14,7 @@ export type ToolMode = 'place' | 'delete'
 export type WorldApi = {
   setKind: (kind: BrickKind) => void
   setColor: (colorId: string) => void
+  setPaint: (paintId: string) => void
   rotate: () => void
   setMode: (mode: ToolMode) => void
   undo: () => void
@@ -22,6 +24,7 @@ export type WorldApi = {
   isShadowLocked: () => boolean
   getKind: () => BrickKind
   getColorId: () => string
+  getPaintId: () => string
   getMode: () => ToolMode
   canUndo: () => boolean
   brickCount: () => number
@@ -172,6 +175,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
 
   let kind: BrickKind = BrickKind.Brick2x2
   let colorId = DEFAULT_COLOR_ID
+  let paintId = DEFAULT_PAINT_ID
   let rot = 0
   let mode: ToolMode = 'place'
   const bricks: Placed[] = []
@@ -247,7 +251,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   }
 
   function toSaved(b: Placed): SavedBrick {
-    return { id: b.id, kind: b.kind, colorId: b.colorId, ox: b.ox, oz: b.oz, rot: b.rot, y: b.y }
+    return { id: b.id, kind: b.kind, colorId: b.colorId, paintId: b.paintId, ox: b.ox, oz: b.oz, rot: b.rot, y: b.y }
   }
 
   function persist(): void {
@@ -263,7 +267,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
 
   function addPlaced(data: SavedBrick, recordUndo: boolean): void {
     const def = defFor(data.kind)
-    const mesh = createBrickGroup(def, colorById(data.colorId).hex)
+    const mesh = createBrickGroup(def, colorById(data.colorId).hex, { paintId: data.paintId })
     tagBrick(mesh, data.id)
     poseMesh(mesh, def, data.ox, data.oz, data.y, data.rot)
     scene.add(mesh)
@@ -304,10 +308,17 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     return mat
   }
 
+  function faceMaterial(root: THREE.Object3D | null): THREE.Material | null {
+    const mat = root?.userData.faceMaterial
+    return mat instanceof THREE.Material ? mat : null
+  }
+
   function paintGhost(valid: boolean): void {
     if (!ghost) return
     ghostValid = valid
     const mat = ghostMaterial()
+    const face = faceMaterial(ghost)
+    if (face) face.opacity = !valid ? 0.55 : shadowLocked ? 1 : 0.9
     if (!mat) return
     const hex = colorById(colorId).hex
     if (!valid) {
@@ -355,12 +366,15 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   }
 
   function rebuildGhost(): void {
-    if (ghost) scene.remove(ghost)
+    if (ghost) {
+      scene.remove(ghost)
+      releaseBrick(ghost)
+    }
     ghost = null
     ghostValid = true
     if (mode !== 'place') return
     const def = defFor(kind)
-    ghost = createBrickGroup(def, colorById(colorId).hex, { ghost: true, valid: true })
+    ghost = createBrickGroup(def, colorById(colorId).hex, { ghost: true, valid: true, paintId })
     disableRaycast(ghost)
     ghost.visible = false
     scene.add(ghost)
@@ -561,6 +575,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
       id: crypto.randomUUID(),
       kind,
       colorId,
+      paintId,
       ox: ghostPose.ox,
       oz: ghostPose.oz,
       rot,
@@ -842,6 +857,13 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
       rebuildGhost()
       hud.onChange()
     },
+    setPaint(next) {
+      if (exploding) return
+      if (!isPaintId(next)) return
+      paintId = next
+      rebuildGhost()
+      hud.onChange()
+    },
     rotate() {
       if (exploding) return
       const prev = rot
@@ -943,6 +965,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     cancelLock,
     getKind: () => kind,
     getColorId: () => colorId,
+    getPaintId: () => paintId,
     getMode: () => mode,
     canUndo: () => undoStack.length > 0,
     brickCount: () => bricks.length,

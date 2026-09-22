@@ -1,6 +1,7 @@
 import { BRICK_CATALOG, BrickKind, defFor, footprint, type BrickKind as BrickKindId } from './bricks/catalog.ts'
 import { BRICK_COLORS } from './bricks/colors.ts'
 import { BASEPLATE_STUDS, BRICK_HEIGHT, boardOrigin } from './bricks/dims.ts'
+import { DEFAULT_PAINT_ID, isPaintId } from './bricks/paints.ts'
 
 export const STORAGE_KEY = 'duplo-build-joe-v1'
 
@@ -8,6 +9,8 @@ export type SavedBrick = {
   id: string
   kind: BrickKindId
   colorId: string
+  /** Face print. Missing on older saves; those load as Plain. */
+  paintId: string
   ox: number
   oz: number
   rot: number
@@ -20,7 +23,8 @@ const LEGACY_SLOPE_KIND = 'slope2x3'
 type ParsedBrick = Omit<SavedBrick, 'kind'> & { kind: BrickKindId | typeof LEGACY_SLOPE_KIND }
 
 export type SaveState = {
-  version: 1 | 2
+  /** 3 adds paintId. 1 and 2 still load; a missing paintId becomes Plain. */
+  version: 1 | 2 | 3
   bricks: SavedBrick[]
 }
 
@@ -142,19 +146,33 @@ export function loadBuild(): SavedBrick[] {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return []
     const parsed = JSON.parse(raw) as { version?: unknown; bricks?: unknown }
-    if ((parsed.version !== 1 && parsed.version !== 2) || !Array.isArray(parsed.bricks)) return []
-    const bricks = parsed.bricks.filter((b): b is ParsedBrick => {
-      if (!b || typeof b !== 'object') return false
+    if ((parsed.version !== 1 && parsed.version !== 2 && parsed.version !== 3) || !Array.isArray(parsed.bricks)) return []
+    const bricks = parsed.bricks.flatMap((b): ParsedBrick[] => {
+      if (!b || typeof b !== 'object') return []
       const brick = b as Record<string, unknown>
-      return (
-        typeof brick.id === 'string' &&
-        isStoredKind(brick.kind) &&
-        isColor(brick.colorId) &&
-        Number.isFinite(brick.ox) &&
-        Number.isFinite(brick.oz) &&
-        Number.isFinite(brick.rot) &&
-        Number.isFinite(brick.y)
-      )
+      if (
+        typeof brick.id !== 'string' ||
+        !isStoredKind(brick.kind) ||
+        !isColor(brick.colorId) ||
+        !Number.isFinite(brick.ox) ||
+        !Number.isFinite(brick.oz) ||
+        !Number.isFinite(brick.rot) ||
+        !Number.isFinite(brick.y)
+      ) {
+        return []
+      }
+      return [
+        {
+          id: brick.id,
+          kind: brick.kind,
+          colorId: brick.colorId as string,
+          paintId: isPaintId(brick.paintId) ? brick.paintId : DEFAULT_PAINT_ID,
+          ox: brick.ox as number,
+          oz: brick.oz as number,
+          rot: brick.rot as number,
+          y: brick.y as number,
+        },
+      ]
     })
     const migrated = migrateLegacySlopes(bricks)
     return parsed.version === 1 ? reseatLegacyHeights(migrated) : migrated
@@ -165,7 +183,7 @@ export function loadBuild(): SavedBrick[] {
 
 export function saveBuild(bricks: SavedBrick[]): void {
   try {
-    const payload: SaveState = { version: 2, bricks }
+    const payload: SaveState = { version: 3, bricks }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   } catch {
     // Quota or private mode — building still works.

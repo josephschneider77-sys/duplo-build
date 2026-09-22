@@ -1,6 +1,6 @@
-import { BRICK_CATALOG, defFor, type BrickKind } from '../bricks/catalog.ts'
+import { BRICK_CATALOG, brickAcceptsFace, defFor, type BrickKind } from '../bricks/catalog.ts'
 import { BRICK_COLORS } from '../bricks/colors.ts'
-import { PAINTS, drawFace } from '../bricks/paints.ts'
+import { FACE_SKIP_TIP, PAINTS, drawFace } from '../bricks/paints.ts'
 import type { WorldApi } from '../world.ts'
 
 const MENU_COLS = 4
@@ -59,17 +59,21 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
       btn.dataset.paint = paint.id
       btn.title = paint.label
       btn.setAttribute('aria-label', paint.label)
-      const thumb = document.createElement('canvas')
-      thumb.width = 72
-      thumb.height = 72
-      thumb.className = 'face-thumb'
-      thumb.setAttribute('aria-hidden', 'true')
-      const ctx = thumb.getContext('2d')
-      if (ctx) drawFace(ctx, paint.id, thumb.width)
-      const label = document.createElement('span')
-      label.className = 'face-chip-label'
-      label.textContent = paint.label
-      btn.append(thumb, label)
+      if (paint.id === 'none') {
+        const label = document.createElement('span')
+        label.className = 'face-chip-label'
+        label.textContent = paint.label
+        btn.append(label)
+      } else {
+        const thumb = document.createElement('canvas')
+        thumb.width = 128
+        thumb.height = 128
+        thumb.className = 'face-thumb'
+        thumb.setAttribute('aria-hidden', 'true')
+        const ctx = thumb.getContext('2d')
+        if (ctx) drawFace(ctx, paint.id, thumb.width)
+        btn.append(thumb)
+      }
       paintBox.append(btn)
     }
   }
@@ -121,9 +125,12 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     root.querySelectorAll<HTMLButtonElement>('[data-color]').forEach((btn) => {
       btn.setAttribute('aria-pressed', String(btn.dataset.color === colorId))
     })
+    const facesOn = brickAcceptsFace(def)
     root.querySelectorAll<HTMLButtonElement>('[data-paint]').forEach((btn) => {
-      btn.setAttribute('aria-pressed', String(btn.dataset.paint === paintId))
+      btn.setAttribute('aria-pressed', String(facesOn && btn.dataset.paint === paintId))
     })
+    const paintTip = root.querySelector<HTMLElement>('[data-paint-tip]')
+    if (paintTip) paintTip.hidden = facesOn
     if (currentShape) currentShape.dataset.shape = kind
     if (currentLabel) currentLabel.textContent = def.label
     if (trigger) {
@@ -137,11 +144,16 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     const locked = world.isExploding()
     root
       .querySelectorAll<HTMLButtonElement>(
-        '[data-action="rotate"], [data-action="delete"], [data-action="clear"], [data-brick-trigger], [data-color], [data-paint], [data-kind]',
+        '[data-action="rotate"], [data-action="delete"], [data-action="clear"], [data-brick-trigger], [data-color], [data-kind]',
       )
       .forEach((btn) => {
         btn.disabled = locked
       })
+    root.querySelectorAll<HTMLButtonElement>('[data-paint]').forEach((btn) => {
+      btn.disabled = locked || !facesOn
+      const name = btn.getAttribute('aria-label') ?? 'Face'
+      btn.title = facesOn ? name : FACE_SKIP_TIP
+    })
     if (undoBtn) undoBtn.disabled = locked || !world.canUndo()
     const clearBtn = root.querySelector<HTMLButtonElement>('[data-action="clear"]')
     if (clearBtn) clearBtn.setAttribute('aria-busy', String(locked))
@@ -183,6 +195,7 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
       if (world.getMode() === 'delete') world.setMode('place')
       clearArmed = false
     } else if (target.dataset.paint) {
+      if (!brickAcceptsFace(defFor(world.getKind()))) return
       world.setPaint(target.dataset.paint)
       if (world.getMode() === 'delete') world.setMode('place')
       clearArmed = false

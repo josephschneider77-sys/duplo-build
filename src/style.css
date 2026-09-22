@@ -686,6 +686,26 @@ body {
   outline-offset: 2px;
 }
 
+.paint-picker {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.paint-tip {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.paint-tip[hidden] {
+  display: none;
+}
+
 .face-row {
   display: flex;
   gap: 6px;
@@ -702,9 +722,9 @@ body {
   align-items: center;
   justify-content: center;
   gap: 1px;
-  min-width: 58px;
-  min-height: 52px;
-  padding: 3px 6px 4px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px;
   border-radius: 14px;
   border: 2px solid var(--stroke);
   background: var(--panel-strong);
@@ -718,23 +738,29 @@ body {
 }
 
 .face-thumb {
-  width: 30px;
-  height: 30px;
+  width: 36px;
+  height: 36px;
   display: block;
   pointer-events: none;
 }
 
 .face-chip-label {
-  font-size: 0.6rem;
+  font-size: 0.72rem;
   font-weight: 800;
   line-height: 1;
   white-space: nowrap;
+  padding: 0 6px;
 }
 
 .face-chip[aria-pressed='true'] {
   border-color: var(--purple);
   background: linear-gradient(180deg, #f3e8ff, #e9d5ff);
   color: var(--purple);
+}
+
+.face-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .hint {

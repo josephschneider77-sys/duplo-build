@@ -1,7 +1,7 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { playBurst, playPop } from './audio.ts'
-import { BrickKind, defFor, footprint, type BrickDef } from './bricks/catalog.ts'
+import { BrickKind, brickAcceptsFace, defFor, footprint, type BrickDef } from './bricks/catalog.ts'
 import { colorById, DEFAULT_COLOR_ID } from './bricks/colors.ts'
 import { DEFAULT_PAINT_ID, isPaintId } from './bricks/paints.ts'
 import { PITCH, onBoard } from './bricks/dims.ts'
@@ -575,7 +575,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
       id: crypto.randomUUID(),
       kind,
       colorId,
-      paintId,
+      paintId: brickAcceptsFace(defFor(kind)) ? paintId : DEFAULT_PAINT_ID,
       ox: ghostPose.ox,
       oz: ghostPose.oz,
       rot,

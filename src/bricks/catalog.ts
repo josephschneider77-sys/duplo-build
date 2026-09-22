@@ -191,6 +191,11 @@ export const BRICK_CATALOG: BrickDef[] = [
   },
 ]
 
+/** Face prints sit on the front of a regular brick. Plates and specials stay plain. */
+export function brickAcceptsFace(def: BrickDef): boolean {
+  return def.shape === 'rect' && def.height >= BRICK_HEIGHT
+}
+
 export function defFor(kind: BrickKind): BrickDef {
   const found = BRICK_CATALOG.find((d) => d.kind === kind)
   if (!found) throw new Error(`Unknown brick kind: ${kind}`)

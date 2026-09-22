@@ -1,7 +1,7 @@
-import { BRICK_CATALOG, BrickKind, defFor, footprint, type BrickKind as BrickKindId } from './bricks/catalog.ts'
+import { BRICK_CATALOG, BrickKind, brickAcceptsFace, defFor, footprint, type BrickKind as BrickKindId } from './bricks/catalog.ts'
 import { BRICK_COLORS } from './bricks/colors.ts'
 import { BASEPLATE_STUDS, BRICK_HEIGHT, boardOrigin } from './bricks/dims.ts'
-import { DEFAULT_PAINT_ID, isPaintId } from './bricks/paints.ts'
+import { DEFAULT_PAINT_ID, normalizePaintId } from './bricks/paints.ts'
 
 export const STORAGE_KEY = 'duplo-build-joe-v1'
 
@@ -166,7 +166,7 @@ export function loadBuild(): SavedBrick[] {
           id: brick.id,
           kind: brick.kind,
           colorId: brick.colorId as string,
-          paintId: isPaintId(brick.paintId) ? brick.paintId : DEFAULT_PAINT_ID,
+          paintId: normalizePaintId(brick.paintId),
           ox: brick.ox as number,
           oz: brick.oz as number,
           rot: brick.rot as number,
@@ -175,7 +175,10 @@ export function loadBuild(): SavedBrick[] {
       ]
     })
     const migrated = migrateLegacySlopes(bricks)
-    return parsed.version === 1 ? reseatLegacyHeights(migrated) : migrated
+    const seated = parsed.version === 1 ? reseatLegacyHeights(migrated) : migrated
+    return seated.map((brick) =>
+      brickAcceptsFace(defFor(brick.kind)) ? brick : { ...brick, paintId: DEFAULT_PAINT_ID },
+    )
   } catch {
     return []
   }

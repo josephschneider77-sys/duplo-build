@@ -5,6 +5,8 @@ import type { WorldApi } from '../world.ts'
 
 const MENU_COLS = 4
 
+type FinishMode = 'color' | 'sticker'
+
 export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => void; toast: (msg: string) => void } {
   const toastEl = root.querySelector<HTMLElement>('[data-toast]')
   const countEl = root.querySelector<HTMLElement>('[data-count]')
@@ -131,6 +133,39 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     selected?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
   }
 
+  function groupForPaint(paintId: string): PaintGroup | null {
+    if (paintId === 'none') return null
+    for (const group of PAINT_GROUPS) {
+      if (paintsInGroup(group.id).some((paint) => paint.id === paintId)) return group.id
+    }
+    return null
+  }
+
+  function selectedPaintGroup(): PaintGroup {
+    const selected = root.querySelector<HTMLButtonElement>('[data-paint-tab][aria-selected="true"]')
+    const id = selected?.dataset.paintTab
+    if (id && isPaintGroup(id)) return id
+    return 'faces'
+  }
+
+  function isFinishMode(value: string | undefined): value is FinishMode {
+    return value === 'color' || value === 'sticker'
+  }
+
+  function setFinishMode(mode: FinishMode): void {
+    if (root.dataset.finish === mode) return
+    root.dataset.finish = mode
+    root.querySelectorAll<HTMLElement>('[data-finish-panel]').forEach((panel) => {
+      panel.hidden = panel.dataset.finishPanel !== mode
+    })
+    root.querySelectorAll<HTMLButtonElement>('[data-finish-mode]').forEach((tab) => {
+      const on = tab.dataset.finishMode === mode
+      tab.setAttribute('aria-selected', String(on))
+      tab.tabIndex = on ? 0 : -1
+    })
+    if (mode === 'sticker') showPaintGroup(groupForPaint(world.getPaintId()) ?? selectedPaintGroup())
+  }
+
   function toast(message: string): void {
     if (!toastEl) return
     toastEl.textContent = message
@@ -158,6 +193,10 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     })
     const facesOn = brickAcceptsFace(def)
     const locked = world.isExploding()
+    root.dataset.faces = facesOn ? 'on' : 'off'
+    root.querySelectorAll<HTMLButtonElement>('[data-finish-mode="sticker"]').forEach((tab) => {
+      tab.dataset.picked = String(paintId !== 'none')
+    })
     root.querySelectorAll<HTMLButtonElement>('[data-paint]').forEach((btn) => {
       btn.setAttribute('aria-pressed', String(facesOn && btn.dataset.paint === paintId))
     })
@@ -189,7 +228,7 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     }
     root
       .querySelectorAll<HTMLButtonElement>(
-        '[data-action="rotate"], [data-action="delete"], [data-action="clear"], [data-brick-trigger], [data-color], [data-kind]',
+        '[data-action="rotate"], [data-action="delete"], [data-action="clear"], [data-brick-trigger], [data-finish-mode], [data-color], [data-kind]',
       )
       .forEach((btn) => {
         btn.disabled = locked
@@ -226,6 +265,12 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     const raw = event.target as HTMLElement
     if (raw.closest('[data-brick-trigger]')) {
       setPickerOpen(!isPickerOpen(), false)
+      return
+    }
+    const finish = raw.closest<HTMLButtonElement>('[data-finish-mode]')
+    if (finish) {
+      if (finish.disabled || !isFinishMode(finish.dataset.finishMode)) return
+      setFinishMode(finish.dataset.finishMode)
       return
     }
     const tab = raw.closest<HTMLButtonElement>('[data-paint-tab]')
@@ -296,6 +341,24 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     setPickerOpen(true)
   })
 
+  root.querySelector<HTMLElement>('[data-finish-modes]')?.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End') return
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[data-finish-mode]')].filter((tab) => !tab.disabled)
+    if (tabs.length === 0) return
+    const index = tabs.findIndex((tab) => tab === document.activeElement)
+    if (index < 0) return
+    let next = index
+    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length
+    else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length
+    else if (event.key === 'Home') next = 0
+    else next = tabs.length - 1
+    const tab = tabs[next]
+    if (!isFinishMode(tab?.dataset.finishMode)) return
+    event.preventDefault()
+    setFinishMode(tab.dataset.finishMode)
+    tab.focus()
+  })
+
   root.querySelector<HTMLElement>('[data-paint-tabs]')?.addEventListener('keydown', (event) => {
     if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End') return
     const tabs = [...root.querySelectorAll<HTMLButtonElement>('[data-paint-tab]')].filter((tab) => !tab.disabled)
@@ -332,6 +395,7 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     options[next]?.focus()
   })
 
+  setFinishMode('color')
   refresh()
   return { refresh, toast }
 }

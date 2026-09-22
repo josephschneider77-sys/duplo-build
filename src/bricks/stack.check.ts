@@ -1,5 +1,5 @@
 import { BrickKind, defFor } from './catalog.ts'
-import { BRICK_HEIGHT, PITCH, PLATE_HEIGHT, onBoard } from './dims.ts'
+import { BASEPLATE_STUDS, BRICK_HEIGHT, PITCH, PLATE_HEIGHT, boardOrigin, onBoard } from './dims.ts'
 import { footprintOrigin, hasLocalTopStud, localStud, rebuildCovers, seatOnCovers, type Cover, type StackPiece } from './stack.ts'
 
 const limits = { maxStack: 24, unitHeight: BRICK_HEIGHT }
@@ -111,8 +111,18 @@ function near(a: number, b: number): boolean {
 
 // One baseplate stud at the rim is enough; the rest may hang off the board.
 {
-  const rim = seat(new Map(), 11, 0, 2, 2)
+  const rimX = boardOrigin() + BASEPLATE_STUDS - 1
+  const rim = seat(new Map(), rimX, 0, 2, 2)
   assert(rim.ok && near(rim.y, 0), `one stud on the rim: ${JSON.stringify(rim)}`)
+  const past = seat(new Map(), rimX + 1, 0, 2, 2)
+  assert(!past.ok, `fully past the rim: ${JSON.stringify(past)}`)
+}
+
+// The plate grew from a centered 24×24. Those cells stay on the board.
+{
+  assert(BASEPLATE_STUDS === 28 && boardOrigin() === -14, `plate ${BASEPLATE_STUDS} origin ${boardOrigin()}`)
+  assert(onBoard(-12, -12) && onBoard(11, 11), 'legacy 24×24 corner cells stay on the plate')
+  assert(!onBoard(-15, 0) && !onBoard(14, 0), 'cells outside 28×28 are off the plate')
 }
 
 // Direct cover rule: highest stud wins, a taller non-stud solid rejects.

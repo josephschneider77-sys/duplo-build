@@ -20,7 +20,7 @@ Bricks use **Duplo-compatible proportions** (about 2× System / LEGO scale: 16-u
 5. **Rotate** (button or `R`) before placing long pieces.
 6. **Delete** mode: tap a brick to remove it (`X` / Delete also toggles).
 7. **Undo** last place, delete, or clear (`Z` or Ctrl/Cmd+Z).
-8. **Clear** twice to wipe the board.
+8. **Clear** twice to burst every brick into candy-colored pieces, then wipe the board. Undo puts the build back.
 
 Drag to orbit, right-drag or two-finger drag to pan, scroll or pinch to zoom. The HUD uses its own pointer events so tools do not steal canvas drags. Builds autosave in `localStorage` on this device.
 

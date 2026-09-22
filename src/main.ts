@@ -42,6 +42,10 @@ if (!webglOk()) {
   window.addEventListener('keydown', (event) => {
     if (event.repeat) return
     const key = event.key.toLowerCase()
+    if (world.isExploding()) {
+      if (key === 'z' || key === 'x' || key === 'backspace' || key === 'delete') event.preventDefault()
+      return
+    }
     if (key === 'r') world.rotate()
     else if ((key === 'z' && (event.metaKey || event.ctrlKey)) || (key === 'z' && !event.metaKey && !event.ctrlKey)) {
       event.preventDefault()

@@ -171,7 +171,10 @@ body {
   color: #c81e6d;
 }
 
-.tool:disabled {
+.tool:disabled,
+.brick-btn:disabled,
+.brick-trigger:disabled,
+.swatch:disabled {
   opacity: 0.45;
   cursor: default;
   transform: none;

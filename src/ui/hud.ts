@@ -105,14 +105,29 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
       modeBtn.setAttribute('aria-pressed', String(mode === 'delete'))
       modeBtn.textContent = mode === 'delete' ? 'Placing' : 'Delete'
     }
-    if (undoBtn) undoBtn.disabled = !world.canUndo()
+    const locked = world.isExploding()
+    root
+      .querySelectorAll<HTMLButtonElement>(
+        '[data-action="rotate"], [data-action="delete"], [data-action="clear"], [data-brick-trigger], [data-color], [data-kind]',
+      )
+      .forEach((btn) => {
+        btn.disabled = locked
+      })
+    if (undoBtn) undoBtn.disabled = locked || !world.canUndo()
+    const clearBtn = root.querySelector<HTMLButtonElement>('[data-action="clear"]')
+    if (clearBtn) clearBtn.setAttribute('aria-busy', String(locked))
+    if (locked) setPickerOpen(false)
     if (countEl) {
-      const n = world.brickCount()
-      countEl.textContent = n === 0 ? 'Empty board' : n === 1 ? '1 brick' : `${n} bricks`
+      if (locked) countEl.textContent = 'Popping…'
+      else {
+        const n = world.brickCount()
+        countEl.textContent = n === 0 ? 'Empty board' : n === 1 ? '1 brick' : `${n} bricks`
+      }
     }
   }
 
   root.addEventListener('click', (event) => {
+    if (world.isExploding()) return
     const raw = event.target as HTMLElement
     if (raw.closest('[data-brick-trigger]')) {
       setPickerOpen(!isPickerOpen(), false)

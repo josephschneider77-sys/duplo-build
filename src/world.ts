@@ -1,10 +1,11 @@
 import * as THREE from 'three'
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
-import { playPop } from './audio.ts'
+import { playBurst, playPop } from './audio.ts'
 import { BrickKind, defFor, footprint, type BrickDef } from './bricks/catalog.ts'
 import { colorById, DEFAULT_COLOR_ID } from './bricks/colors.ts'
 import { PITCH, onBoard } from './bricks/dims.ts'
 import { createBaseplate, createBrickGroup, disableRaycast, tagBrick } from './bricks/geometry.ts'
+import { createBurst, type Burst } from './fx/burst.ts'
 import { loadBuild, saveBuild, type SavedBrick } from './persist.ts'
 
 export type ToolMode = 'place' | 'delete'
@@ -16,6 +17,7 @@ export type WorldApi = {
   setMode: (mode: ToolMode) => void
   undo: () => void
   clear: () => void
+  isExploding: () => boolean
   getKind: () => BrickKind
   getColorId: () => string
   getMode: () => ToolMode
@@ -142,6 +144,10 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   let hoverId: string | null = null
   let raf = 0
   let disposed = false
+  let exploding = false
+  let burst: Burst | null = null
+  let clearSnapshot: SavedBrick[] | null = null
+  let lastTick = 0
 
   const pointerDown = { x: 0, y: 0, active: false, pointerId: -1 }
 
@@ -216,6 +222,19 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     bricks.push({ ...data, mesh })
     if (recordUndo) undoStack.push({ type: 'place', brick: { ...data } })
     rebuildHeights()
+  }
+
+  function releaseBrick(mesh: THREE.Object3D): void {
+    const seen = new Set<THREE.Material>()
+    mesh.traverse((obj) => {
+      if (!(obj instanceof THREE.Mesh)) return
+      const mats = Array.isArray(obj.material) ? obj.material : [obj.material]
+      for (const mat of mats) {
+        if (seen.has(mat)) continue
+        seen.add(mat)
+        mat.dispose()
+      }
+    })
   }
 
   function removeById(id: string, recordUndo: boolean): boolean {
@@ -353,6 +372,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   }
 
   function onPointerDown(event: PointerEvent): void {
+    if (exploding) return
     if (event.target !== canvas) return
     pointerDown.active = true
     pointerDown.x = event.clientX
@@ -361,6 +381,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   }
 
   function onPointerMove(event: PointerEvent): void {
+    if (exploding) return
     if (event.target !== canvas) {
       if (ghost) ghost.visible = false
       highlight(null)
@@ -375,6 +396,10 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   }
 
   function onPointerUp(event: PointerEvent): void {
+    if (exploding) {
+      pointerDown.active = false
+      return
+    }
     if (!pointerDown.active || pointerDown.pointerId !== event.pointerId) return
     pointerDown.active = false
     if (event.target !== canvas) return
@@ -462,8 +487,32 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     renderer.setSize(w, h, false)
   }
 
+  function finishBurst(): void {
+    if (!burst && !exploding) return
+    burst?.dispose()
+    if (burst) scene.remove(burst.group)
+    burst = null
+    for (const b of bricks) {
+      scene.remove(b.mesh)
+      releaseBrick(b.mesh)
+    }
+    bricks.length = 0
+    const snapshot = clearSnapshot ?? []
+    clearSnapshot = null
+    undoStack.push({ type: 'clear', bricks: snapshot })
+    rebuildHeights()
+    exploding = false
+    ghostPose = null
+    persist()
+    hud.toast('All cleared — undo if that was a whoops')
+  }
+
   function tick(): void {
     if (disposed) return
+    const now = performance.now()
+    const dt = lastTick === 0 ? 0.016 : Math.min(0.05, (now - lastTick) / 1000)
+    lastTick = now
+    if (burst && !burst.update(dt)) finishBurst()
     easeFraming()
     controls.update()
     renderer.render(scene, camera)
@@ -485,27 +534,32 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
 
   return {
     setKind(next) {
+      if (exploding) return
       kind = next
       rebuildGhost()
       hud.onChange()
     },
     setColor(next) {
+      if (exploding) return
       colorId = next
       rebuildGhost()
       hud.onChange()
     },
     rotate() {
+      if (exploding) return
       rot = (rot + 1) % 4
       hud.toast(rot % 2 === 0 ? 'Straight' : 'Turned')
       hud.onChange()
     },
     setMode(next) {
+      if (exploding) return
       mode = next
       highlight(null)
       rebuildGhost()
       hud.onChange()
     },
     undo() {
+      if (exploding) return
       const action = undoStack.pop()
       if (!action) {
         hud.toast('Nothing to undo')
@@ -521,17 +575,42 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
       playPop(true)
     },
     clear() {
+      if (exploding) return
       if (bricks.length === 0) {
         hud.toast('Board is already empty')
         return
       }
-      const snapshot = bricks.map(toSaved)
-      for (const b of [...bricks]) removeById(b.id, false)
-      undoStack.push({ type: 'clear', bricks: snapshot })
-      persist()
-      playPop(true)
-      hud.toast('All cleared — undo if that was a whoops')
+      // Keep the build in memory (and localStorage) until the pop finishes,
+      // then commit the same clear + undo snapshot Clear used to do at once.
+      exploding = true
+      pointerDown.active = false
+      highlight(null)
+      ghostPose = null
+      if (ghost) ghost.visible = false
+      clearSnapshot = bricks.map(toSaved)
+      for (const b of bricks) scene.remove(b.mesh)
+      try {
+        burst = createBurst(
+          bricks.map((b) => ({
+            kind: b.kind,
+            hex: colorById(b.colorId).hex,
+            ox: b.ox,
+            oz: b.oz,
+            rot: b.rot,
+            y: b.y,
+          })),
+        )
+        scene.add(burst.group)
+      } catch (err) {
+        console.error(err)
+        finishBurst()
+        return
+      }
+      playBurst()
+      hud.toast('Pop! Bricks go flying')
+      hud.onChange()
     },
+    isExploding: () => exploding,
     getKind: () => kind,
     getColorId: () => colorId,
     getMode: () => mode,
@@ -540,6 +619,8 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     dispose() {
       disposed = true
       cancelAnimationFrame(raf)
+      burst?.dispose()
+      burst = null
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)

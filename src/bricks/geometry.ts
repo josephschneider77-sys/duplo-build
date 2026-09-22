@@ -3,6 +3,7 @@ import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { BASEPLATE_STUDS, BASEPLATE_THICKNESS, BODY_GAP, BRICK_HEIGHT, PITCH, PLATE_HEIGHT, STUD_HEIGHT, STUD_RADIUS, bodySize, boardOrigin } from './dims.ts'
 import { brickAcceptsFace, type BrickDef } from './catalog.ts'
+import { hasLocalTopStud } from './stack.ts'
 import { faceCanvasTexture } from './paints.ts'
 
 /** Inner wall of the open stud. The pin is a second cylinder, not a boolean cut. */
@@ -229,12 +230,8 @@ export function createBrickGroup(
   else if (def.shape === 'round') addRoundBody(group, def, mat, ghost)
   else addRectBody(group, def, mat, ghost)
 
-  if (def.shape === 'slope') {
-    // Studs stay on the flat high end (local -X, the first stud row).
-    addStuds(group, def, mat, ghost, (ix) => ix === 0)
-  } else {
-    addStuds(group, def, mat, ghost)
-  }
+  // Slope keeps studs on the flat roof only; other pieces use the full grid.
+  addStuds(group, def, mat, ghost, (ix, iz) => hasLocalTopStud(def, ix, iz))
 
   attachFace(group, def, opts?.paintId, ghost)
 

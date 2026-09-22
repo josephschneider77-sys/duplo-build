@@ -99,19 +99,18 @@ function insideBowGeometry(def: BrickDef): THREE.BufferGeometry {
 }
 
 /**
- * Design 35114 roof tile. Bottom at y = 0, high end at −X.
- * The toe is half a brick. The slope runs two studs and rises from that toe
- * to one brick, about atan(9.6/32). The leftover stud is the flat roof.
- * Catalog height stays BRICK_HEIGHT so the two roof studs sit on y = H.
+ * Design 6474 — 2×2×1½ slope. Bottom at y = 0, high end at −X.
+ * Flat roof is one stud wide. The slope runs the other stud, from a plate-height
+ * toe up to 1½ bricks. Angle is atan((H − tipH) / slopeRun), about 50° (LDraw).
+ * Two studs sit on the flat roof because catalog height is H.
  */
 function slopeGeometry(def: BrickDef): THREE.BufferGeometry {
-  return cached(`slope:${def.studsX}x${def.studsZ}x${def.height}`, () => {
-    const W = 3 * PITCH - BODY_GAP
+  return cached(`slope:${def.kind}:${def.height}`, () => {
+    const W = 2 * PITCH - BODY_GAP
     const D = 2 * PITCH - BODY_GAP
-    const H = BRICK_HEIGHT
+    const H = 1.5 * BRICK_HEIGHT
     const tipH = PLATE_HEIGHT
-    const slopeRun = 2 * PITCH
-    const flatW = W - slopeRun
+    const flatW = PITCH - BODY_GAP / 2
 
     const shape = new THREE.Shape()
     shape.moveTo(-W / 2, 0)

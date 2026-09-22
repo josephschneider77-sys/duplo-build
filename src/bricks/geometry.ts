@@ -190,17 +190,24 @@ export function createBaseplate(): THREE.Group {
   rim.receiveShadow = true
   group.add(rim)
 
+  const count = BASEPLATE_STUDS * BASEPLATE_STUDS
+  const studs = new THREE.InstancedMesh(studGeometry, studMat, count)
+  const dummy = new THREE.Object3D()
+  let i = 0
   for (let ix = 0; ix < BASEPLATE_STUDS; ix++) {
     for (let iz = 0; iz < BASEPLATE_STUDS; iz++) {
-      const stud = new THREE.Mesh(studGeometry, studMat)
       const sx = origin + ix
       const sz = origin + iz
-      stud.position.set((sx + 0.5) * PITCH, STUD_HEIGHT / 2, (sz + 0.5) * PITCH)
-      stud.receiveShadow = true
-      stud.userData.baseplate = true
-      group.add(stud)
+      dummy.position.set((sx + 0.5) * PITCH, STUD_HEIGHT / 2, (sz + 0.5) * PITCH)
+      dummy.updateMatrix()
+      studs.setMatrixAt(i, dummy.matrix)
+      i += 1
     }
   }
+  studs.instanceMatrix.needsUpdate = true
+  studs.receiveShadow = true
+  studs.userData.baseplate = true
+  group.add(studs)
 
   group.userData.baseplate = true
   return group

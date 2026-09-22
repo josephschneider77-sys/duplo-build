@@ -39,13 +39,40 @@
       <div class="toast" data-toast data-show="false" role="status" aria-live="polite"></div>
 
       <footer class="dock">
-        <div class="dock-row">
-          <span class="dock-label">Bricks</span>
-          <div class="brick-row" data-bricks></div>
-        </div>
-        <div class="dock-row">
-          <span class="dock-label">Colors</span>
-          <div class="color-row" data-colors></div>
+        <div class="dock-main">
+          <div class="dock-row brick-picker-row">
+            <span class="dock-label" id="brick-picker-label">Bricks</span>
+            <div class="brick-picker" data-brick-picker>
+              <button
+                type="button"
+                class="brick-trigger"
+                data-brick-trigger
+                aria-expanded="false"
+                aria-haspopup="listbox"
+                aria-controls="brick-menu"
+                aria-label="Choose a brick"
+              >
+                <span class="mini-wrap" aria-hidden="true">
+                  <span class="mini" data-current-shape="brick2x2"></span>
+                </span>
+                <span class="brick-trigger-label" data-current-label>2×2</span>
+                <span class="chevron" aria-hidden="true"></span>
+              </button>
+              <div class="brick-menu" data-brick-menu hidden>
+                <div
+                  id="brick-menu"
+                  class="brick-grid"
+                  data-bricks
+                  role="listbox"
+                  aria-labelledby="brick-picker-label"
+                ></div>
+              </div>
+            </div>
+          </div>
+          <div class="dock-row">
+            <span class="dock-label">Colors</span>
+            <div class="color-row" data-colors></div>
+          </div>
         </div>
         <p class="hint">
           <span data-count>Empty board</span>

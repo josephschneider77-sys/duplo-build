@@ -96,9 +96,9 @@ function gridSlots(def: BrickDef): Slot[] {
           ly = sy / 2
         }
         if (def.shape === 'slope' && layers === 1) {
-          // Tall at local −X, low lip at +X — same as the ramp mesh.
+          // Full brick at local −X, half-brick toe at +X — same as the roof tile.
           const t = cols <= 1 ? 1 : 1 - col / (cols - 1)
-          sy = def.height * (0.36 + 0.58 * t)
+          sy = def.height * (0.5 + 0.5 * t)
           ly = sy / 2
         }
         if (def.shape === 'round') {

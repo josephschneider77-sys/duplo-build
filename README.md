@@ -2,7 +2,7 @@
 
 A kid-friendly 3D brick builder for **Joe Schneider**. Pick a chunky brick, pick a candy color, and snap pieces onto a studded board.
 
-Bricks use **Duplo-compatible proportions** (about 2× System scale: 16-unit stud pitch, brick height 19.2, plates at half a brick so two plates equal one brick, hollow studs). Special pieces follow real part proportions: a 2×4×2 inside-bow arch, a 3×2 ramp, and a 2×2×2 round cylinder with four studs. Geometry is procedural Three.js — no STL or official brick assets.
+Bricks use **Duplo-compatible proportions** (about 2× System scale: 16-unit stud pitch, brick height 19.2, plates at half a brick so two plates equal one brick, hollow studs). Special pieces follow real part proportions: a 2×4×2 inside-bow arch, a 3×2 roof-tile slope with a half-brick toe, and a 2×2×2 round cylinder with four studs. Geometry is procedural Three.js — no STL or official brick assets.
 
 **Not affiliated with the LEGO Group or the DUPLO brand.** Those names appear only so you know the *scale* this toy aims for.
 
@@ -11,7 +11,7 @@ Bricks use **Duplo-compatible proportions** (about 2× System scale: 16-unit stu
 1. Choose a brick from the compact picker (tap to open the dropdown). The kit includes:
    - Bricks: **2×2**, **2×3**, **2×4**, **2×6**, **2×8**, **1×1**, **1×2**, **1×4**
    - Plates: **1×2**, **2×2**, **2×4**, **4×4**, **4×8**
-   - Specials: **2×4×2 arch** (bridge arch), **3×2 slope** (ramp), **2×2×2 round** (tall cylinder)
+   - Specials: **2×4×2 arch** (bridge arch), **3×2 slope 22°** (roof tile), **2×2×2 round** (tall cylinder)
    
    A **4×2** brick is just a rotated **2×4** — use Rotate / `R`.
 2. Choose a color (eight bright + pastel plastics).

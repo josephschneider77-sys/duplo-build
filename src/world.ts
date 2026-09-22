@@ -5,6 +5,7 @@ import { BrickKind, brickAcceptsFace, defFor, footprint, type BrickDef } from '.
 import { colorById, DEFAULT_COLOR_ID } from './bricks/colors.ts'
 import { DEFAULT_PAINT_ID, isPaintId } from './bricks/paints.ts'
 import { PITCH, onBoard } from './bricks/dims.ts'
+import { footprintOrigin, rebuildCovers, seatOnCovers, type Cover } from './bricks/stack.ts'
 import { createBaseplate, createBrickGroup, disableRaycast, tagBrick } from './bricks/geometry.ts'
 import { createBurst, type Burst } from './fx/burst.ts'
 import { loadBuild, saveBuild, type SavedBrick } from './persist.ts'
@@ -180,7 +181,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   let mode: ToolMode = 'place'
   const bricks: Placed[] = []
   const undoStack: Action[] = []
-  const heights = new Map<string, number>()
+  let covers = new Map<string, Cover>()
 
   let ghost: THREE.Group | null = null
   let ghostValid = false
@@ -203,51 +204,20 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
 
   const pointerDown = { x: 0, y: 0, active: false, pointerId: -1 }
 
-  function cellKey(sx: number, sz: number): string {
-    return `${sx},${sz}`
-  }
-
   function rebuildHeights(): void {
-    heights.clear()
-    for (const b of bricks) {
-      const def = defFor(b.kind)
-      const { w, d } = footprint(def.studsX, def.studsZ, b.rot)
-      const top = b.y + def.height
-      for (let i = 0; i < w; i++) {
-        for (let j = 0; j < d; j++) {
-          const k = cellKey(b.ox + i, b.oz + j)
-          heights.set(k, Math.max(heights.get(k) ?? 0, top))
-        }
-      }
-    }
+    covers = rebuildCovers(bricks)
   }
 
-  /** Duplo-style: ≥1 stud can click. Same-height supports; gaps/overhangs are fine. */
+  /**
+   * Sit on the highest stud under the footprint. One click is enough.
+   * A lower step is a gap, not a reason to reject, unless that plastic
+   * rises through the seat.
+   */
   function support(ox: number, oz: number, w: number, d: number): { ok: boolean; y: number } {
-    let supportY: number | null = null
-    let onBoardCount = 0
-    let baseCount = 0
-    for (let i = 0; i < w; i++) {
-      for (let j = 0; j < d; j++) {
-        const sx = ox + i
-        const sz = oz + j
-        if (!onBoard(sx, sz)) continue
-        onBoardCount += 1
-        const h = heights.get(cellKey(sx, sz)) ?? 0
-        if (h > 0.05) {
-          if (supportY === null) supportY = h
-          else if (Math.abs(h - supportY) > 0.05) return { ok: false, y: supportY }
-        } else {
-          baseCount += 1
-        }
-      }
-    }
-    if (onBoardCount === 0) return { ok: false, y: 0 }
-    const y = supportY ?? 0
-    if (supportY === null && baseCount === 0) return { ok: false, y: 0 }
-    const stack = y / defFor(BrickKind.Brick2x2).height
-    if (stack >= MAX_STACK) return { ok: false, y }
-    return { ok: true, y }
+    return seatOnCovers(covers, ox, oz, w, d, onBoard, {
+      maxStack: MAX_STACK,
+      unitHeight: defFor(BrickKind.Brick2x2).height,
+    })
   }
 
   function toSaved(b: Placed): SavedBrick {
@@ -390,32 +360,22 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     return raycaster.intersectObjects(scene.children, true)
   }
 
-  function snapFromEvent(event: PointerEvent, assist = true): (SnapCell & { point: THREE.Vector3 }) | null {
+  function snapFromEvent(event: PointerEvent): (SnapCell & { point: THREE.Vector3 }) | null {
     const hits = pickFromEvent(event).filter((h) => {
       const obj = h.object
       return obj.userData.baseplate || obj.userData.brickId
     })
 
-    // Aim with the ground plane so one screen point always maps to the same
-    // cells (a brick-top hit is closer to the camera and would shift x/z).
-    if (!raycaster.ray.intersectPlane(groundPlane, groundPoint)) return null
+    // Use the surface under the cursor (a stud, a brick top, the baseplate).
+    // The old ground-plane aim, plus centering on any brick the piece fit
+    // inside, dropped a 2×2 on the middle of a 2×8 no matter which stud you
+    // pointed at. The hit keeps that stud, so a corner click stays a corner.
+    if (hits[0]) groundPoint.copy(hits[0].point)
+    else if (!raycaster.ray.intersectPlane(groundPlane, groundPoint)) return null
 
     const def = defFor(kind)
     const { w, d } = footprint(def.studsX, def.studsZ, rot)
-    let ox = Math.round(groundPoint.x / PITCH - w / 2)
-    let oz = Math.round(groundPoint.z / PITCH - d / 2)
-
-    const hitId = hits[0]?.object.userData.brickId as string | undefined
-    const hitBrick = assist && hitId ? bricks.find((b) => b.id === hitId) : undefined
-    if (hitBrick) {
-      const hitDef = defFor(hitBrick.kind)
-      const hitFp = footprint(hitDef.studsX, hitDef.studsZ, hitBrick.rot)
-      if (w <= hitFp.w && d <= hitFp.d) {
-        ox = hitBrick.ox + Math.floor((hitFp.w - w) / 2)
-        oz = hitBrick.oz + Math.floor((hitFp.d - d) / 2)
-      }
-    }
-
+    const { ox, oz } = footprintOrigin(groundPoint.x, groundPoint.z, w, d, PITCH)
     const seat = support(ox, oz, w, d)
     return { ox, oz, y: seat.y, ok: seat.ok, point: groundPoint }
   }
@@ -528,14 +488,14 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   }
 
   function previewDrag(event: PointerEvent): void {
-    const snap = snapFromEvent(event, false)
+    const snap = snapFromEvent(event)
     if (!snap) return
     showGhostAt(snap.ox, snap.oz, snap.y, snap.ok)
     if (snap.ok) dragSeat = { ox: snap.ox, oz: snap.oz, y: snap.y }
   }
 
   function finishDrag(event: PointerEvent): void {
-    const snap = snapFromEvent(event, false)
+    const snap = snapFromEvent(event)
     const next = snap?.ok ? snap : dragSeat
     dragSeat = null
     if (next) {

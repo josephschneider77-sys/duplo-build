@@ -244,7 +244,9 @@ export function createBrickGroup(
 }
 
 /** Sticker sits just proud of the plastic so it does not z-fight the bevel. */
-const STICKER_GAP = 0.32
+const STICKER_GAP = 0.28
+/** Extruded arch and slope bevels swell past the outline. Clear that lip. */
+const BEVEL_CLEAR = 0.85
 
 /**
  * ~70% of the face, centered. Aspect is capped so a long brick keeps one
@@ -269,6 +271,7 @@ function stickerMaterial(texture: THREE.CanvasTexture, ghost?: boolean): THREE.M
     transparent: true,
     opacity: ghost ? 0.92 : 1,
     depthWrite: false,
+    side: THREE.DoubleSide,
     toneMapped: false,
     premultipliedAlpha: false,
   })
@@ -301,8 +304,9 @@ function faceGeometry(def: BrickDef): THREE.BufferGeometry {
     const { w, d } = bodySize(def.studsX, def.studsZ)
     const radius = Math.min(w, d) / 2
     const panel = facePanel(radius * 2, def.height)
-    const shellR = radius + STICKER_GAP
-    const theta = Math.min(Math.PI * 0.9, panel.w / shellR)
+    const shellR = radius + 0.45
+    // Wide enough that the default three-quarter camera still sees the front print.
+    const theta = Math.min(Math.PI * 0.85, Math.max(panel.w / shellR, Math.PI * 0.75))
     return cached(
       `sticker-arc:${shellR.toFixed(2)}:${panel.h.toFixed(2)}:${theta.toFixed(3)}`,
       () => new THREE.CylinderGeometry(shellR, shellR, panel.h, 24, 1, true, -theta / 2, theta),
@@ -332,13 +336,13 @@ function poseFace(mesh: THREE.Mesh, def: BrickDef): void {
   }
   if (def.shape === 'slope') {
     const width = 2 * PITCH - BODY_GAP
-    mesh.position.set(-width / 2 - STICKER_GAP, def.height / 2, 0)
+    mesh.position.set(-width / 2 - BEVEL_CLEAR, def.height / 2, 0)
     mesh.rotation.y = -Math.PI / 2
     return
   }
   if (def.shape === 'arch') {
     const width = 4 * PITCH - BODY_GAP
-    mesh.position.set(width / 2 + STICKER_GAP, def.height / 2, 0)
+    mesh.position.set(width / 2 + BEVEL_CLEAR, def.height / 2, 0)
     mesh.rotation.y = Math.PI / 2
     return
   }

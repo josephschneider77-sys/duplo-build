@@ -1,12 +1,19 @@
-import { BRICK_CATALOG, type BrickKind } from '../bricks/catalog.ts'
+import { BRICK_CATALOG, defFor, type BrickKind } from '../bricks/catalog.ts'
 import { BRICK_COLORS } from '../bricks/colors.ts'
 import type { WorldApi } from '../world.ts'
+
+const MENU_COLS = 4
 
 export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => void; toast: (msg: string) => void } {
   const toastEl = root.querySelector<HTMLElement>('[data-toast]')
   const countEl = root.querySelector<HTMLElement>('[data-count]')
   const modeBtn = root.querySelector<HTMLButtonElement>('[data-action="delete"]')
   const undoBtn = root.querySelector<HTMLButtonElement>('[data-action="undo"]')
+  const picker = root.querySelector<HTMLElement>('[data-brick-picker]')
+  const trigger = root.querySelector<HTMLButtonElement>('[data-brick-trigger]')
+  const menu = root.querySelector<HTMLElement>('[data-brick-menu]')
+  const currentShape = root.querySelector<HTMLElement>('[data-current-shape]')
+  const currentLabel = root.querySelector<HTMLElement>('[data-current-label]')
   let toastTimer = 0
   let clearArmed = false
 
@@ -18,6 +25,7 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
       btn.className = 'brick-btn'
       btn.dataset.kind = def.kind
       btn.title = def.hint
+      btn.setAttribute('role', 'option')
       btn.setAttribute('aria-label', `${def.label} ${def.hint}`)
       btn.innerHTML = `
         <span class="mini" data-shape="${def.kind}" aria-hidden="true"></span>
@@ -41,6 +49,28 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     }
   }
 
+  function brickButtons(): HTMLButtonElement[] {
+    return [...root.querySelectorAll<HTMLButtonElement>('[data-bricks] [data-kind]')]
+  }
+
+  function isPickerOpen(): boolean {
+    return picker?.dataset.open === 'true'
+  }
+
+  function setPickerOpen(open: boolean, restoreFocus = false): void {
+    if (!picker || !trigger || !menu) return
+    picker.dataset.open = String(open)
+    trigger.setAttribute('aria-expanded', String(open))
+    menu.hidden = !open
+    if (open) {
+      const selected =
+        brickButtons().find((btn) => btn.getAttribute('aria-selected') === 'true') ?? brickButtons()[0]
+      selected?.focus()
+    } else if (restoreFocus) {
+      trigger.focus()
+    }
+  }
+
   function toast(message: string): void {
     if (!toastEl) return
     toastEl.textContent = message
@@ -55,13 +85,22 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     const kind = world.getKind()
     const colorId = world.getColorId()
     const mode = world.getMode()
+    const def = defFor(kind)
     root.dataset.mode = mode
     root.querySelectorAll<HTMLButtonElement>('[data-kind]').forEach((btn) => {
-      btn.setAttribute('aria-pressed', String(btn.dataset.kind === kind))
+      const selected = btn.dataset.kind === kind
+      btn.setAttribute('aria-pressed', String(selected))
+      btn.setAttribute('aria-selected', String(selected))
     })
     root.querySelectorAll<HTMLButtonElement>('[data-color]').forEach((btn) => {
       btn.setAttribute('aria-pressed', String(btn.dataset.color === colorId))
     })
+    if (currentShape) currentShape.dataset.shape = kind
+    if (currentLabel) currentLabel.textContent = def.label
+    if (trigger) {
+      trigger.setAttribute('aria-label', `${def.label}, ${def.hint}. Choose a brick`)
+      trigger.title = `${def.label} — ${def.hint}`
+    }
     if (modeBtn) {
       modeBtn.setAttribute('aria-pressed', String(mode === 'delete'))
       modeBtn.textContent = mode === 'delete' ? 'Placing' : 'Delete'
@@ -74,12 +113,18 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
   }
 
   root.addEventListener('click', (event) => {
-    const target = (event.target as HTMLElement).closest<HTMLElement>('[data-kind], [data-color], [data-action]')
+    const raw = event.target as HTMLElement
+    if (raw.closest('[data-brick-trigger]')) {
+      setPickerOpen(!isPickerOpen(), false)
+      return
+    }
+    const target = raw.closest<HTMLElement>('[data-kind], [data-color], [data-action]')
     if (!target) return
     if (target.dataset.kind) {
       world.setKind(target.dataset.kind as BrickKind)
       if (world.getMode() === 'delete') world.setMode('place')
       clearArmed = false
+      setPickerOpen(false, true)
     } else if (target.dataset.color) {
       world.setColor(target.dataset.color)
       if (world.getMode() === 'delete') world.setMode('place')
@@ -102,6 +147,49 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
       clearArmed = false
       world.clear()
     }
+  })
+
+  document.addEventListener('pointerdown', (event) => {
+    if (!isPickerOpen() || !picker) return
+    const target = event.target as Node | null
+    if (target && picker.contains(target)) return
+    setPickerOpen(false)
+  })
+
+  window.addEventListener(
+    'keydown',
+    (event) => {
+      if (event.key !== 'Escape' || !isPickerOpen()) return
+      event.preventDefault()
+      event.stopImmediatePropagation()
+      setPickerOpen(false, true)
+    },
+    true,
+  )
+
+  trigger?.addEventListener('keydown', (event) => {
+    if (isPickerOpen()) return
+    if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
+    event.preventDefault()
+    setPickerOpen(true)
+  })
+
+  menu?.addEventListener('keydown', (event) => {
+    if (!isPickerOpen()) return
+    const options = brickButtons()
+    const current = document.activeElement
+    const index = options.findIndex((btn) => btn === current)
+    if (index < 0) return
+    let next = -1
+    if (event.key === 'ArrowRight') next = Math.min(options.length - 1, index + 1)
+    else if (event.key === 'ArrowLeft') next = Math.max(0, index - 1)
+    else if (event.key === 'ArrowDown') next = Math.min(options.length - 1, index + MENU_COLS)
+    else if (event.key === 'ArrowUp') next = Math.max(0, index - MENU_COLS)
+    else if (event.key === 'Home') next = 0
+    else if (event.key === 'End') next = options.length - 1
+    if (next < 0 || next === index) return
+    event.preventDefault()
+    options[next]?.focus()
   })
 
   refresh()

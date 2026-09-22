@@ -8,7 +8,7 @@ Bricks use **Duplo-compatible proportions** (about 2× System / LEGO scale: 16-u
 
 ## Play
 
-1. Choose a brick from the tray (swipe on a phone). The kit includes:
+1. Choose a brick from the compact picker (tap to open the dropdown). The kit includes:
    - Bricks: **2×2**, **2×3**, **2×4**, **2×6**, **2×8**, **1×1**, **1×2**, **1×4**
    - Plates: **1×2**, **2×2**, **2×4**, **4×4**, **4×8**
    - Specials: **2×4 arch** (bridge), **2×3 slope** (ramp), **2×2 round** (cylinder)

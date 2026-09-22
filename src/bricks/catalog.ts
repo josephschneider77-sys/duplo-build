@@ -155,8 +155,9 @@ export const BRICK_CATALOG: BrickDef[] = [
   },
   {
     kind: BrickKind.Arch2x4,
-    // Design 11198 — 2×4×2 inside bow. Flat top, eight studs, ~1-stud end walls,
-    // smooth tunnel about 60% of the height. Longer arches (18652) are a later kit add.
+    // Design 11198 — 2×4×2 inside bow. Flat top, eight studs.
+    // Opening is a tall ellipse: half-width 16, height 0.78 of the two-brick body.
+    // Longer arches (18652) are a later kit add.
     label: '2×4×2 arch',
     hint: 'Bridge arch',
     studsX: 4,
@@ -166,8 +167,9 @@ export const BRICK_CATALOG: BrickDef[] = [
   },
   {
     kind: BrickKind.Slope2x3,
-    // Design 35114 — 3×2 slope. Tall end is one brick; a ~33° plane runs down to the
-    // front edge, with studs on the high back row. Kind id stays slope2x3 so older saves load.
+    // Design 35114 — 3×2 slope. Tall end is one brick. A 1.2 lip at the front,
+    // then a 33° plane that rises 18 onto the flat roof. Studs only on that roof.
+    // Kind id stays slope2x3 so older saves load.
     label: '3×2 slope',
     hint: 'Ramp',
     studsX: 3,

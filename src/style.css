@@ -609,8 +609,8 @@ body {
   background: #9b5de5;
   border-radius: 4px;
   clip-path: none;
-  -webkit-mask: radial-gradient(ellipse 46% 68% at 50% 118%, transparent 0 62%, #000 66%);
-  mask: radial-gradient(ellipse 46% 68% at 50% 118%, transparent 0 62%, #000 66%);
+  -webkit-mask: radial-gradient(ellipse 26% 78% at 50% 100%, transparent 0 96%, #000 100%);
+  mask: radial-gradient(ellipse 26% 78% at 50% 100%, transparent 0 96%, #000 100%);
 }
 .mini[data-shape='arch2x4']::before {
   left: 6px;
@@ -622,7 +622,7 @@ body {
   width: 48px;
   height: 26px;
   background: #ff9f1c;
-  clip-path: polygon(0 0, 34% 0, 100% 48%, 100% 100%, 0 100%);
+  clip-path: polygon(0 0, 41% 0, 100% 94%, 100% 100%, 0 100%);
   border-radius: 0;
   box-shadow: none;
 }

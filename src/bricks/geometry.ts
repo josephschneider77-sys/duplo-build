@@ -1,16 +1,14 @@
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
-import { BASEPLATE_STUDS, BASEPLATE_THICKNESS, PITCH, STUD_HEIGHT, STUD_RADIUS, bodySize, boardOrigin } from './dims.ts'
+import { BASEPLATE_STUDS, BASEPLATE_THICKNESS, BODY_GAP, PITCH, STUD_HEIGHT, STUD_RADIUS, bodySize, boardOrigin } from './dims.ts'
 import type { BrickDef } from './catalog.ts'
 
 /** Inner wall of the open stud. The pin is a second cylinder, not a boolean cut. */
 const STUD_INNER = 3.5
 const STUD_PIN_RADIUS = 1.6
 const CHAMFER = 0.55
-/** Inside-bow opening height as a fraction of the two-brick arch. Spec window is 0.55–0.65. */
-const ARCH_OPENING = 0.6
-/** Slope plane for design 35114. */
+/** Design 35114 slope, in radians. */
 const SLOPE_ANGLE = (33 * Math.PI) / 180
 
 const bodyGeos = new Map<string, THREE.BufferGeometry>()
@@ -64,67 +62,73 @@ function rectGeometry(def: BrickDef): THREE.BufferGeometry {
 }
 
 /**
- * Design 11198 side profile, extruded along Z.
- * End walls are one stud each. The soffit is a smooth ellipse that meets the floor,
- * peaking at ARCH_OPENING of the two-brick height (inside the 0.55–0.65 window).
+ * Design 11198 recipe A. Bottom at y = 0.
+ * Outer rect with a tall elliptical hole (rx = 16, ry = 0.78 H), not a semicircle and not pillars plus a flat lintel.
+ * Clockwise π→0 is the upper half. Flip that flag if the opening comes out inverted.
  */
 function insideBowGeometry(def: BrickDef): THREE.BufferGeometry {
   return cached(`bow:${def.studsX}x${def.studsZ}x${def.height}`, () => {
-    const { w, d } = bodySize(def.studsX, def.studsZ)
-    const hw = w / 2
-    const wall = w / def.studsX
-    const foot = hw - wall
-    const rise = def.height * ARCH_OPENING
-    const steps = 28
+    const W = 4 * PITCH - BODY_GAP
+    const D = 2 * PITCH - BODY_GAP
+    const H = def.height
+    const rx = PITCH
+    const ry = H * 0.78
 
     const shape = new THREE.Shape()
-    shape.moveTo(-hw, 0)
-    shape.lineTo(-foot, 0)
-    for (let i = 1; i <= steps; i++) {
-      const theta = Math.PI - (i / steps) * Math.PI
-      shape.lineTo(foot * Math.cos(theta), rise * Math.sin(theta))
-    }
-    shape.lineTo(hw, 0)
-    shape.lineTo(hw, def.height)
-    shape.lineTo(-hw, def.height)
+    shape.moveTo(-W / 2, 0)
+    shape.lineTo(W / 2, 0)
+    shape.lineTo(W / 2, H)
+    shape.lineTo(-W / 2, H)
     shape.closePath()
 
+    const hole = new THREE.Path()
+    hole.absellipse(0, 0, rx, ry, Math.PI, 0, true)
+    hole.closePath()
+    shape.holes.push(hole)
+
     const geo = new THREE.ExtrudeGeometry(shape, {
-      depth: d,
-      bevelEnabled: false,
-      curveSegments: 1,
+      depth: D,
+      bevelEnabled: true,
+      bevelThickness: 0.35,
+      bevelSize: 0.35,
+      curveSegments: 24,
       steps: 1,
     })
-    geo.translate(0, 0, -d / 2)
+    geo.translate(0, 0, -D / 2)
     geo.computeVertexNormals()
     return geo
   })
 }
 
 /**
- * Design 35114, high end at -X. A flat stud row, then a 33° plane down to the front edge.
+ * Design 35114. High end at -X. Front lip is 1.2; the plane rises 18 over 18/tan(33°).
  * Extruded trapezoid, not a box with shoved vertices.
  */
 function slopeGeometry(def: BrickDef): THREE.BufferGeometry {
   return cached(`slope:${def.studsX}x${def.studsZ}x${def.height}`, () => {
-    const { w, d } = bodySize(def.studsX, def.studsZ)
-    const hw = w / 2
-    const run = Math.min(w - PITCH * 0.85, def.height / Math.tan(SLOPE_ANGLE))
-    const flat = w - run
+    const W = 3 * PITCH - BODY_GAP
+    const D = 2 * PITCH - BODY_GAP
+    const H = def.height
+    const lip = 1.2
+    const rise = 18
+    const slopeRun = rise / Math.tan(SLOPE_ANGLE)
+    const flatW = W - slopeRun
+
     const shape = new THREE.Shape()
-    shape.moveTo(-hw, 0)
-    shape.lineTo(hw, 0)
-    shape.lineTo(-hw + flat, def.height)
-    shape.lineTo(-hw, def.height)
+    shape.moveTo(-W / 2, 0)
+    shape.lineTo(W / 2, 0)
+    shape.lineTo(W / 2, lip)
+    shape.lineTo(-W / 2 + flatW, H)
+    shape.lineTo(-W / 2, H)
     shape.closePath()
 
     const geo = new THREE.ExtrudeGeometry(shape, {
-      depth: d,
+      depth: D,
       bevelEnabled: false,
       curveSegments: 1,
       steps: 1,
     })
-    geo.translate(0, 0, -d / 2)
+    geo.translate(0, 0, -D / 2)
     geo.computeVertexNormals()
     return geo
   })

@@ -1,28 +1,90 @@
 import * as THREE from 'three'
+import { drawStickerGlyph, hasStickerGlyph } from './glyphs.ts'
 
 /**
- * Original chunky face drawings for the front of a brick.
- * Not copies of any LEGO or DUPLO print.
+ * Original chunky stickers for the front of a 2×2 brick.
+ * Faces, numbers, and letters. Not copies of any LEGO or DUPLO print.
  */
 
-export const PAINTS = [
-  { id: 'none', label: 'Plain' },
-  { id: 'smile', label: 'Smile' },
-  { id: 'grin', label: 'Grin' },
-  { id: 'wink', label: 'Wink' },
-  { id: 'sleepy', label: 'Sleepy' },
-  { id: 'wow', label: 'Wow' },
-  { id: 'shy', label: 'Shy' },
-  { id: 'kitty', label: 'Kitty' },
-  { id: 'puppy', label: 'Puppy' },
+export const PAINT_GROUPS = [
+  { id: 'faces', label: 'Faces' },
+  { id: 'numbers', label: 'Numbers' },
+  { id: 'letters', label: 'Letters' },
 ] as const
 
-export type PaintId = (typeof PAINTS)[number]['id']
+export type PaintGroup = (typeof PAINT_GROUPS)[number]['id']
+
+const FACE_PAINTS = [
+  { id: 'none', label: 'Plain', group: 'faces' },
+  { id: 'smile', label: 'Smile', group: 'faces' },
+  { id: 'grin', label: 'Grin', group: 'faces' },
+  { id: 'wink', label: 'Wink', group: 'faces' },
+  { id: 'sleepy', label: 'Sleepy', group: 'faces' },
+  { id: 'wow', label: 'Wow', group: 'faces' },
+  { id: 'shy', label: 'Shy', group: 'faces' },
+  { id: 'kitty', label: 'Kitty', group: 'faces' },
+  { id: 'puppy', label: 'Puppy', group: 'faces' },
+] as const
+
+const NUMBER_IDS = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'] as const
+
+const LETTER_IDS = [
+  'A',
+  'B',
+  'C',
+  'D',
+  'E',
+  'F',
+  'G',
+  'H',
+  'I',
+  'J',
+  'K',
+  'L',
+  'M',
+  'N',
+  'O',
+  'P',
+  'Q',
+  'R',
+  'S',
+  'T',
+  'U',
+  'V',
+  'W',
+  'X',
+  'Y',
+  'Z',
+] as const
+
+export type PaintId =
+  | (typeof FACE_PAINTS)[number]['id']
+  | (typeof NUMBER_IDS)[number]
+  | (typeof LETTER_IDS)[number]
+
+export const PAINTS: readonly { id: PaintId; label: string; group: PaintGroup }[] = [
+  ...FACE_PAINTS,
+  ...NUMBER_IDS.map((id) => ({ id, label: id, group: 'numbers' as const })),
+  ...LETTER_IDS.map((id) => ({ id, label: id, group: 'letters' as const })),
+]
 
 export const DEFAULT_PAINT_ID: PaintId = 'none'
 
 /** Shown when the current piece cannot take a front-face print. */
-export const FACE_SKIP_TIP = 'Faces go on brick sides'
+export const FACE_SKIP_TIP = 'Faces fit 2×2 bricks'
+
+export function isPaintGroup(value: string): value is PaintGroup {
+  return PAINT_GROUPS.some((group) => group.id === value)
+}
+
+export function paintsInGroup(group: PaintGroup): readonly { id: PaintId; label: string; group: PaintGroup }[] {
+  return PAINTS.filter((paint) => paint.group === group && paint.id !== 'none')
+}
+
+for (const paint of PAINTS) {
+  if (paint.group === 'faces') continue
+  if (!hasStickerGlyph(paint.id)) throw new Error(`Missing sticker art for ${paint.id}`)
+}
 
 const INK = '#1a1a1a'
 const WHITE = '#ffffff'
@@ -67,7 +129,7 @@ export function drawFace(ctx: CanvasRenderingContext2D, paintId: string, size: n
   else if (paintId === 'shy') drawShy(ctx)
   else if (paintId === 'kitty') drawKitty(ctx)
   else if (paintId === 'puppy') drawPuppy(ctx)
-  else drawPlain(ctx)
+  else if (!drawStickerGlyph(ctx, paintId)) drawPlain(ctx)
   ctx.restore()
 }
 

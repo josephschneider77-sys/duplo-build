@@ -76,8 +76,75 @@
           <div class="dock-row paint-picker-row">
             <span class="dock-label" id="paint-picker-label">Paint</span>
             <div class="paint-picker">
-              <div class="face-row" data-paints role="group" aria-labelledby="paint-picker-label"></div>
-              <p class="paint-tip" data-paint-tip hidden>Faces go on brick sides</p>
+              <div class="paint-tabs" data-paint-tabs role="tablist" aria-labelledby="paint-picker-label">
+                <button
+                  type="button"
+                  class="paint-tab"
+                  id="paint-tab-faces"
+                  data-paint-tab="faces"
+                  role="tab"
+                  aria-selected="true"
+                  aria-controls="paint-panel-faces"
+                >
+                  Faces
+                </button>
+                <button
+                  type="button"
+                  class="paint-tab"
+                  id="paint-tab-numbers"
+                  data-paint-tab="numbers"
+                  role="tab"
+                  aria-selected="false"
+                  tabindex="-1"
+                  aria-controls="paint-panel-numbers"
+                >
+                  Numbers
+                </button>
+                <button
+                  type="button"
+                  class="paint-tab"
+                  id="paint-tab-letters"
+                  data-paint-tab="letters"
+                  role="tab"
+                  aria-selected="false"
+                  tabindex="-1"
+                  aria-controls="paint-panel-letters"
+                >
+                  Letters
+                </button>
+              </div>
+              <div class="paint-body">
+                <div class="paint-plain" data-paint-plain></div>
+                <div class="paint-panels">
+                  <div
+                    id="paint-panel-faces"
+                    class="face-row"
+                    data-paint-panel="faces"
+                    role="tabpanel"
+                    aria-labelledby="paint-tab-faces"
+                  ></div>
+                  <div
+                    id="paint-panel-numbers"
+                    class="face-row"
+                    data-paint-panel="numbers"
+                    role="tabpanel"
+                    aria-labelledby="paint-tab-numbers"
+                    hidden
+                  ></div>
+                  <div
+                    id="paint-panel-letters"
+                    class="letter-board"
+                    data-paint-panel="letters"
+                    role="tabpanel"
+                    aria-labelledby="paint-tab-letters"
+                    hidden
+                  >
+                    <div class="face-row" data-letter-row></div>
+                    <div class="face-row" data-letter-row></div>
+                  </div>
+                </div>
+              </div>
+              <p class="paint-tip" data-paint-tip hidden>Faces fit 2×2 bricks</p>
             </div>
           </div>
         </div>

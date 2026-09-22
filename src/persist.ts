@@ -217,6 +217,7 @@ export function loadBuild(): SavedBrick[] {
       // meets the plate we play on. A 24×24 save cannot invent pieces in the new ring.
       if (!overlapsPlate(brick.ox, brick.oz, w, d, savedStuds)) return []
       if (!overlapsPlate(brick.ox, brick.oz, w, d, BASEPLATE_STUDS)) return []
+      // A print on anything but a 2×2 brick would stretch. Clear it.
       return [brickAcceptsFace(def) ? brick : { ...brick, paintId: DEFAULT_PAINT_ID }]
     })
   } catch {

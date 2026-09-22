@@ -191,9 +191,18 @@ export const BRICK_CATALOG: BrickDef[] = [
   },
 ]
 
-/** Face prints sit on the front of a regular brick. Plates and specials stay plain. */
+/**
+ * Stickers sit on the square front of a 2×2 brick.
+ * Longer bricks, plates, and specials stay plain so a print is never stretched.
+ */
 export function brickAcceptsFace(def: BrickDef): boolean {
-  return def.shape === 'rect' && def.height >= BRICK_HEIGHT
+  return (
+    def.kind === BrickKind.Brick2x2 &&
+    def.shape === 'rect' &&
+    def.studsX === 2 &&
+    def.studsZ === 2 &&
+    def.height === BRICK_HEIGHT
+  )
 }
 
 export function defFor(kind: BrickKind): BrickDef {

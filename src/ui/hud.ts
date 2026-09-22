@@ -1,6 +1,6 @@
 import { BRICK_CATALOG, brickAcceptsFace, defFor, type BrickKind } from '../bricks/catalog.ts'
 import { BRICK_COLORS } from '../bricks/colors.ts'
-import { FACE_SKIP_TIP, PAINTS, drawFace } from '../bricks/paints.ts'
+import { FACE_SKIP_TIP, PAINT_GROUPS, isPaintGroup, paintsInGroup, drawFace, type PaintGroup, type PaintId } from '../bricks/paints.ts'
 import type { WorldApi } from '../world.ts'
 
 const MENU_COLS = 4
@@ -50,32 +50,49 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     }
   }
 
-  const paintBox = root.querySelector('[data-paints]')
-  if (paintBox && paintBox.childElementCount === 0) {
-    for (const paint of PAINTS) {
-      const btn = document.createElement('button')
-      btn.type = 'button'
-      btn.className = 'face-chip'
-      btn.dataset.paint = paint.id
-      btn.title = paint.label
-      btn.setAttribute('aria-label', paint.label)
-      if (paint.id === 'none') {
-        const label = document.createElement('span')
-        label.className = 'face-chip-label'
-        label.textContent = paint.label
-        btn.append(label)
-      } else {
-        const thumb = document.createElement('canvas')
-        thumb.width = 128
-        thumb.height = 128
-        thumb.className = 'face-thumb'
-        thumb.setAttribute('aria-hidden', 'true')
-        const ctx = thumb.getContext('2d')
-        if (ctx) drawFace(ctx, paint.id, thumb.width)
-        btn.append(thumb)
-      }
-      paintBox.append(btn)
+  const plainSlot = root.querySelector('[data-paint-plain]')
+  if (plainSlot && plainSlot.childElementCount === 0) {
+    plainSlot.append(makePaintChip({ id: 'none', label: 'Plain' }, 'plain'))
+  }
+
+  for (const group of PAINT_GROUPS) {
+    const panel = root.querySelector<HTMLElement>(`[data-paint-panel="${group.id}"]`)
+    if (!panel || panel.querySelector('[data-paint]')) continue
+    const paints = paintsInGroup(group.id)
+    if (group.id === 'letters') {
+      const rows = [...panel.querySelectorAll<HTMLElement>('[data-letter-row]')]
+      const mid = Math.ceil(paints.length / 2)
+      rows[0]?.append(...paints.slice(0, mid).map((paint) => makePaintChip(paint, 'mark')))
+      rows[1]?.append(...paints.slice(mid).map((paint) => makePaintChip(paint, 'mark')))
+    } else {
+      const kind = group.id === 'numbers' ? 'mark' : 'face'
+      panel.append(...paints.map((paint) => makePaintChip(paint, kind)))
     }
+  }
+
+  function makePaintChip(paint: { id: PaintId; label: string }, kind: 'plain' | 'face' | 'mark'): HTMLButtonElement {
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.className = 'face-chip'
+    btn.dataset.paint = paint.id
+    btn.title = paint.label
+    btn.setAttribute('aria-label', paint.label)
+    if (kind === 'face') {
+      const thumb = document.createElement('canvas')
+      thumb.width = 128
+      thumb.height = 128
+      thumb.className = 'face-thumb'
+      thumb.setAttribute('aria-hidden', 'true')
+      const ctx = thumb.getContext('2d')
+      if (ctx) drawFace(ctx, paint.id, thumb.width)
+      btn.append(thumb)
+    } else {
+      const label = document.createElement('span')
+      label.className = kind === 'plain' ? 'face-chip-label' : 'face-chip-mark'
+      label.textContent = paint.label
+      btn.append(label)
+    }
+    return btn
   }
 
   function brickButtons(): HTMLButtonElement[] {
@@ -98,6 +115,20 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     } else if (restoreFocus) {
       trigger.focus()
     }
+  }
+
+  function showPaintGroup(group: PaintGroup): void {
+    root.querySelectorAll<HTMLElement>('[data-paint-panel]').forEach((panel) => {
+      panel.hidden = panel.dataset.paintPanel !== group
+    })
+    root.querySelectorAll<HTMLButtonElement>('[data-paint-tab]').forEach((tab) => {
+      const on = tab.dataset.paintTab === group
+      tab.setAttribute('aria-selected', String(on))
+      tab.tabIndex = on ? 0 : -1
+    })
+    const panel = root.querySelector<HTMLElement>(`[data-paint-panel="${group}"]`)
+    const selected = panel?.querySelector<HTMLButtonElement>('[aria-pressed="true"]')
+    selected?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
   }
 
   function toast(message: string): void {
@@ -126,11 +157,26 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
       btn.setAttribute('aria-pressed', String(btn.dataset.color === colorId))
     })
     const facesOn = brickAcceptsFace(def)
+    const locked = world.isExploding()
     root.querySelectorAll<HTMLButtonElement>('[data-paint]').forEach((btn) => {
       btn.setAttribute('aria-pressed', String(facesOn && btn.dataset.paint === paintId))
     })
+    root.querySelectorAll<HTMLButtonElement>('[data-paint-tab]').forEach((tab) => {
+      const tabGroup = tab.dataset.paintTab
+      const tabHasPick =
+        paintId !== 'none' &&
+        !!tabGroup &&
+        isPaintGroup(tabGroup) &&
+        paintsInGroup(tabGroup).some((paint) => paint.id === paintId)
+      tab.dataset.picked = String(tabHasPick)
+      tab.disabled = locked || !facesOn
+      tab.title = facesOn ? tab.textContent?.trim() || 'Stickers' : FACE_SKIP_TIP
+    })
     const paintTip = root.querySelector<HTMLElement>('[data-paint-tip]')
-    if (paintTip) paintTip.hidden = facesOn
+    if (paintTip) {
+      paintTip.hidden = facesOn
+      paintTip.textContent = FACE_SKIP_TIP
+    }
     if (currentShape) currentShape.dataset.shape = kind
     if (currentLabel) currentLabel.textContent = def.label
     if (trigger) {
@@ -141,7 +187,6 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
       modeBtn.setAttribute('aria-pressed', String(mode === 'delete'))
       modeBtn.textContent = mode === 'delete' ? 'Placing' : 'Delete'
     }
-    const locked = world.isExploding()
     root
       .querySelectorAll<HTMLButtonElement>(
         '[data-action="rotate"], [data-action="delete"], [data-action="clear"], [data-brick-trigger], [data-color], [data-kind]',
@@ -181,6 +226,12 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     const raw = event.target as HTMLElement
     if (raw.closest('[data-brick-trigger]')) {
       setPickerOpen(!isPickerOpen(), false)
+      return
+    }
+    const tab = raw.closest<HTMLButtonElement>('[data-paint-tab]')
+    if (tab?.dataset.paintTab && isPaintGroup(tab.dataset.paintTab)) {
+      if (tab.disabled) return
+      showPaintGroup(tab.dataset.paintTab)
       return
     }
     const target = raw.closest<HTMLElement>('[data-kind], [data-color], [data-paint], [data-action]')
@@ -243,6 +294,24 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     if (event.key !== 'ArrowDown' && event.key !== 'ArrowUp') return
     event.preventDefault()
     setPickerOpen(true)
+  })
+
+  root.querySelector<HTMLElement>('[data-paint-tabs]')?.addEventListener('keydown', (event) => {
+    if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End') return
+    const tabs = [...root.querySelectorAll<HTMLButtonElement>('[data-paint-tab]')].filter((tab) => !tab.disabled)
+    if (tabs.length === 0) return
+    const index = tabs.findIndex((tab) => tab === document.activeElement)
+    if (index < 0) return
+    let next = index
+    if (event.key === 'ArrowRight') next = (index + 1) % tabs.length
+    else if (event.key === 'ArrowLeft') next = (index - 1 + tabs.length) % tabs.length
+    else if (event.key === 'Home') next = 0
+    else next = tabs.length - 1
+    const tab = tabs[next]
+    if (!tab?.dataset.paintTab || !isPaintGroup(tab.dataset.paintTab)) return
+    event.preventDefault()
+    showPaintGroup(tab.dataset.paintTab)
+    tab.focus()
   })
 
   menu?.addEventListener('keydown', (event) => {

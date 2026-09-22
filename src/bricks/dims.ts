@@ -10,10 +10,10 @@ export const BRICK_HEIGHT = 19.2
  * The old 6.4 value was a System plate (one third of a System brick).
  */
 export const PLATE_HEIGHT = BRICK_HEIGHT / 2
-/** Open stud outer radius, 12 LDU. */
+/** Open stud outer radius. */
 export const STUD_RADIUS = 4.8
-/** Open stud height: primitive is 4 LDU, placed at 2.75× → 11 LDU. */
-export const STUD_HEIGHT = 4.4
+/** Stud height kept near 4 so stacked bricks still hide the stud. */
+export const STUD_HEIGHT = 4
 export const BODY_GAP = 0.7
 export const BASEPLATE_THICKNESS = 3.2
 /** Was 12×12; 24×24 is ~4× the usable area at the same pitch. */

@@ -91,6 +91,7 @@ export const BRICK_CATALOG: BrickDef[] = [
   },
   {
     kind: BrickKind.Brick1x2,
+    // Game-short on purpose. Design 76371 is the 1×2×2; this kit keeps one brick of height.
     label: '1×2',
     hint: 'Skinny brick',
     studsX: 2,
@@ -154,8 +155,8 @@ export const BRICK_CATALOG: BrickDef[] = [
   },
   {
     kind: BrickKind.Arch2x4,
-    // Design 11198 — brick 2×4×2 inside bow. Circular soffit, full studs on the flat top.
-    // The longer 18652 (2×8×2) uses a different two-center curve, so it is not a scaled copy.
+    // Design 11198 — 2×4×2 inside bow. Flat top, eight studs, ~1-stud end walls,
+    // smooth tunnel about 60% of the height. Longer arches (18652) are a later kit add.
     label: '2×4×2 arch',
     hint: 'Bridge arch',
     studsX: 4,
@@ -165,11 +166,10 @@ export const BRICK_CATALOG: BrickDef[] = [
   },
   {
     kind: BrickKind.Slope2x3,
-    // Design 35114 — 3×2 slope. Catalogs call the angle 33; the mould is the shallower
-    // ~17° roof: one stud of flat top (with studs), then a slope down to a half-height toe.
-    // Kind id stays slope2x3 so older saves still resolve.
+    // Design 35114 — 3×2 slope. Tall end is one brick; a ~33° plane runs down to the
+    // front edge, with studs on the high back row. Kind id stays slope2x3 so older saves load.
     label: '3×2 slope',
-    hint: 'Gentle ramp',
+    hint: 'Ramp',
     studsX: 3,
     studsZ: 2,
     height: BRICK_HEIGHT,

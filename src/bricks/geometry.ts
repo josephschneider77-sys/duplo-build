@@ -1,13 +1,17 @@
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { BASEPLATE_STUDS, BASEPLATE_THICKNESS, PITCH, STUD_HEIGHT, STUD_RADIUS, bodySize, boardOrigin } from './dims.ts'
 import type { BrickDef } from './catalog.ts'
 
-/** stud7a inner wall is 9 LDU. The pin sits below the rim so the stud reads hollow. */
-const STUD_INNER = 3.6
-const STUD_PIN_RADIUS = 1.8
-const STUD_PIN_RECESS = 1.15
+/** Inner wall of the open stud. The pin is a second cylinder, not a boolean cut. */
+const STUD_INNER = 3.5
+const STUD_PIN_RADIUS = 1.6
 const CHAMFER = 0.55
+/** Inside-bow opening height as a fraction of the two-brick arch. Spec window is 0.55–0.65. */
+const ARCH_OPENING = 0.6
+/** Slope plane for design 35114. */
+const SLOPE_ANGLE = (33 * Math.PI) / 180
 
 const bodyGeos = new Map<string, THREE.BufferGeometry>()
 
@@ -22,23 +26,30 @@ function cached(key: string, make: () => THREE.BufferGeometry): THREE.BufferGeom
 
 function hollowStudGeometry(): THREE.BufferGeometry {
   return cached('stud-hollow', () => {
-    const rim = STUD_HEIGHT
-    const pinTop = rim - STUD_PIN_RECESS
-    const floor = 0.25
-    // One solid of revolution: outer wall, open cup, recessed center pin.
-    const points = [
-      new THREE.Vector2(STUD_RADIUS, 0),
-      new THREE.Vector2(STUD_RADIUS, rim),
-      new THREE.Vector2(STUD_INNER, rim),
-      new THREE.Vector2(STUD_INNER, floor),
-      new THREE.Vector2(STUD_PIN_RADIUS, floor),
-      new THREE.Vector2(STUD_PIN_RADIUS, pinTop),
-      new THREE.Vector2(0.04, pinTop),
-    ]
-    const geo = new THREE.LatheGeometry(points, 18)
-    geo.translate(0, -rim / 2, 0)
-    geo.computeVertexNormals()
-    return geo
+    const half = STUD_HEIGHT / 2
+    // Outer tube. A lathe of two radii is the hollow cylinder; no CSG subtract.
+    const tube = new THREE.LatheGeometry(
+      [
+        new THREE.Vector2(STUD_RADIUS, -half),
+        new THREE.Vector2(STUD_RADIUS, half),
+        new THREE.Vector2(STUD_INNER, half),
+        new THREE.Vector2(STUD_INNER, -half),
+      ],
+      16,
+    )
+    const pinH = STUD_HEIGHT * 0.62
+    const pin = new THREE.CylinderGeometry(STUD_PIN_RADIUS, STUD_PIN_RADIUS, pinH, 10)
+    pin.translate(0, -half + pinH / 2 + 0.05, 0)
+    const tubeOpen = tube.toNonIndexed()
+    const pinOpen = pin.toNonIndexed()
+    tube.dispose()
+    pin.dispose()
+    const merged = mergeGeometries([tubeOpen, pinOpen])
+    tubeOpen.dispose()
+    pinOpen.dispose()
+    if (!merged) throw new Error('Could not build hollow stud')
+    merged.computeVertexNormals()
+    return merged
   })
 }
 
@@ -53,31 +64,25 @@ function rectGeometry(def: BrickDef): THREE.BufferGeometry {
 }
 
 /**
- * Design 11198 side profile: a circular inside bow.
- * LDraw places the soffit center 24 LDU (9.6mm) above the bottom with radius 40 LDU (16mm),
- * so the opening meets the floor and the crown is 32 LDU (12.8mm) thick.
+ * Design 11198 side profile, extruded along Z.
+ * End walls are one stud each. The soffit is a smooth ellipse that meets the floor,
+ * peaking at ARCH_OPENING of the two-brick height (inside the 0.55–0.65 window).
  */
 function insideBowGeometry(def: BrickDef): THREE.BufferGeometry {
   return cached(`bow:${def.studsX}x${def.studsZ}x${def.height}`, () => {
     const { w, d } = bodySize(def.studsX, def.studsZ)
-    const scale = w / (4 * PITCH)
-    const radius = 16 * scale
-    const centerY = 9.6 * scale
-    const halfChord = Math.sqrt(Math.max(0, radius * radius - centerY * centerY))
     const hw = w / 2
-    const foot = Math.min(halfChord, hw - 1)
-    const leftAngle = Math.atan2(-centerY, -foot)
-    const rightAngle = Math.atan2(-centerY, foot)
-    // Long way over the crown. The short sweep between these angles dips below the floor.
-    const sweep = rightAngle - leftAngle - Math.PI * 2
-    const steps = 32
+    const wall = w / def.studsX
+    const foot = hw - wall
+    const rise = def.height * ARCH_OPENING
+    const steps = 28
 
     const shape = new THREE.Shape()
     shape.moveTo(-hw, 0)
     shape.lineTo(-foot, 0)
     for (let i = 1; i <= steps; i++) {
-      const angle = leftAngle + (i / steps) * sweep
-      shape.lineTo(Math.cos(angle) * radius, centerY + Math.sin(angle) * radius)
+      const theta = Math.PI - (i / steps) * Math.PI
+      shape.lineTo(foot * Math.cos(theta), rise * Math.sin(theta))
     }
     shape.lineTo(hw, 0)
     shape.lineTo(hw, def.height)
@@ -97,19 +102,18 @@ function insideBowGeometry(def: BrickDef): THREE.BufferGeometry {
 }
 
 /**
- * Design 35114 side profile, high end at -X.
- * One stud of flat top, then atan(9.6 / 32) ≈ 17° down to a toe at half height.
+ * Design 35114, high end at -X. A flat stud row, then a 33° plane down to the front edge.
+ * Extruded trapezoid, not a box with shoved vertices.
  */
 function slopeGeometry(def: BrickDef): THREE.BufferGeometry {
   return cached(`slope:${def.studsX}x${def.studsZ}x${def.height}`, () => {
     const { w, d } = bodySize(def.studsX, def.studsZ)
     const hw = w / 2
-    const flat = w / def.studsX
-    const toeY = def.height / 2
+    const run = Math.min(w - PITCH * 0.85, def.height / Math.tan(SLOPE_ANGLE))
+    const flat = w - run
     const shape = new THREE.Shape()
     shape.moveTo(-hw, 0)
     shape.lineTo(hw, 0)
-    shape.lineTo(hw, toeY)
     shape.lineTo(-hw + flat, def.height)
     shape.lineTo(-hw, def.height)
     shape.closePath()

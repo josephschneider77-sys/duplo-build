@@ -91,6 +91,7 @@ export const BRICK_CATALOG: BrickDef[] = [
   },
   {
     kind: BrickKind.Brick1x2,
+    // Game-short on purpose. Design 76371 is the 1×2×2; this kit keeps one brick of height.
     label: '1×2',
     hint: 'Skinny brick',
     studsX: 2,
@@ -154,18 +155,23 @@ export const BRICK_CATALOG: BrickDef[] = [
   },
   {
     kind: BrickKind.Arch2x4,
-    label: '2×4 arch',
-    hint: 'Bridge with a tunnel',
+    // Design 11198 — 2×4×2 inside bow. Flat top, eight studs.
+    // Opening is a tall ellipse: half-width 16, height 0.78 of the two-brick body.
+    // Longer arches (18652) are a later kit add.
+    label: '2×4×2 arch',
+    hint: 'Bridge arch',
     studsX: 4,
     studsZ: 2,
-    // Two bricks tall so the inverted-U tunnel reads from the side.
     height: BRICK_HEIGHT * 2,
     shape: 'arch',
   },
   {
     kind: BrickKind.Slope2x3,
-    label: '2×3 slope',
-    hint: 'Ramp brick',
+    // Design 35114 — 3×2 slope. Tall end is one brick. A 1.2 lip at the front,
+    // then a 33° plane that rises 18 onto the flat roof. Studs only on that roof.
+    // Kind id stays slope2x3 so older saves load.
+    label: '3×2 slope',
+    hint: 'Ramp',
     studsX: 3,
     studsZ: 2,
     height: BRICK_HEIGHT,
@@ -173,11 +179,13 @@ export const BRICK_CATALOG: BrickDef[] = [
   },
   {
     kind: BrickKind.Round2x2,
-    label: '2×2 round',
-    hint: 'Cylinder brick',
+    // Design 98225 — round 2×2×2. The cylinder is two brick-units tall.
+    // Top studs are the normal 2×2 grid, not a single center stud.
+    label: '2×2×2 round',
+    hint: 'Tall round brick',
     studsX: 2,
     studsZ: 2,
-    height: BRICK_HEIGHT,
+    height: BRICK_HEIGHT * 2,
     shape: 'round',
   },
 ]

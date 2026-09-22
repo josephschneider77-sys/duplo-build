@@ -1,12 +1,22 @@
-/** Duplo-compatible proportions (~2× System / LEGO scale). */
+/**
+ * Duplo-compatible proportions (~2× System scale).
+ * Design ids live in catalog comments. This toy is not affiliated with those brands.
+ */
 export const PITCH = 16
+/** Body height of one brick, studs not included. */
 export const BRICK_HEIGHT = 19.2
-export const PLATE_HEIGHT = 6.4
+/**
+ * Plates are half a brick, so two plates stack to one brick.
+ * The old 6.4 value was a System plate (one third of a System brick).
+ */
+export const PLATE_HEIGHT = BRICK_HEIGHT / 2
+/** Open stud outer radius, 12 LDU. */
 export const STUD_RADIUS = 4.8
-export const STUD_HEIGHT = 4.0
+/** Open stud height: primitive is 4 LDU, placed at 2.75× → 11 LDU. */
+export const STUD_HEIGHT = 4.4
 export const BODY_GAP = 0.7
 export const BASEPLATE_THICKNESS = 3.2
-/** Was 12×12; 24×24 is ~4× the usable area at the same Duplo pitch. */
+/** Was 12×12; 24×24 is ~4× the usable area at the same pitch. */
 export const BASEPLATE_STUDS = 24
 
 export function bodySize(studsX: number, studsZ: number): { w: number; d: number } {
@@ -28,6 +38,6 @@ export function boardOrigin(): number {
 }
 
 export function onBoard(sx: number, sz: number): boolean {
-  const o = boardOrigin()
-  return sx >= o && sz >= o && sx < o + BASEPLATE_STUDS && sz < o + BASEPLATE_STUDS
+  const origin = boardOrigin()
+  return sx >= origin && sz >= origin && sx < origin + BASEPLATE_STUDS && sz < origin + BASEPLATE_STUDS
 }

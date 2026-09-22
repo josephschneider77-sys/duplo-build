@@ -533,7 +533,7 @@ body {
 
 .mini[data-shape='plate1x2'] {
   width: 32px;
-  height: 10px;
+  height: 14px;
 }
 .mini[data-shape='plate1x2']::before {
   background: #ff9ad9;
@@ -547,7 +547,7 @@ body {
 
 .mini[data-shape='plate2x2'] {
   width: 28px;
-  height: 12px;
+  height: 16px;
 }
 .mini[data-shape='plate2x2']::before,
 .mini[data-shape='plate2x2']::after {
@@ -562,7 +562,7 @@ body {
 
 .mini[data-shape='plate2x4'] {
   width: 48px;
-  height: 12px;
+  height: 16px;
 }
 .mini[data-shape='plate2x4']::before {
   background: #ff9ad9;
@@ -576,7 +576,7 @@ body {
 
 .mini[data-shape='plate4x4'] {
   width: 42px;
-  height: 14px;
+  height: 18px;
 }
 .mini[data-shape='plate4x4']::before,
 .mini[data-shape='plate4x4']::after {
@@ -604,11 +604,13 @@ body {
 .mini[data-shape='plate4x8']::after { top: 8px; }
 
 .mini[data-shape='arch2x4'] {
-  width: 50px;
-  height: 24px;
+  width: 52px;
+  height: 30px;
   background: #9b5de5;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 72% 100%, 72% 42%, 28% 42%, 28% 100%, 0 100%);
-  border-radius: 4px 4px 0 0;
+  border-radius: 4px;
+  clip-path: none;
+  -webkit-mask: radial-gradient(ellipse 46% 68% at 50% 118%, transparent 0 62%, #000 66%);
+  mask: radial-gradient(ellipse 46% 68% at 50% 118%, transparent 0 62%, #000 66%);
 }
 .mini[data-shape='arch2x4']::before {
   left: 6px;
@@ -617,10 +619,10 @@ body {
 .mini[data-shape='arch2x4']::after { display: none; }
 
 .mini[data-shape='slope2x3'] {
-  width: 46px;
+  width: 48px;
   height: 26px;
   background: #ff9f1c;
-  clip-path: polygon(0 0, 18% 0, 100% 100%, 0 100%);
+  clip-path: polygon(0 0, 34% 0, 100% 48%, 100% 100%, 0 100%);
   border-radius: 0;
   box-shadow: none;
 }
@@ -633,18 +635,20 @@ body {
 .mini[data-shape='slope2x3']::after { display: none; }
 
 .mini[data-shape='round2x2'] {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
+  width: 26px;
+  height: 36px;
+  border-radius: 13px;
   background: #9b5de5;
 }
 .mini[data-shape='round2x2']::before,
 .mini[data-shape='round2x2']::after {
-  left: 6px;
-  box-shadow: 8px 0 0 #b388f9;
+  left: 5px;
+  width: 7px;
+  height: 7px;
+  box-shadow: 9px 0 0 #b388f9;
 }
-.mini[data-shape='round2x2']::before { top: 4px; }
-.mini[data-shape='round2x2']::after { top: 14px; }
+.mini[data-shape='round2x2']::before { top: 3px; }
+.mini[data-shape='round2x2']::after { top: 12px; }
 
 .swatch {
   width: 40px;

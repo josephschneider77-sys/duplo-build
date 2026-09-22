@@ -1,8 +1,14 @@
 import * as THREE from 'three'
+import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { BASEPLATE_STUDS, BASEPLATE_THICKNESS, PITCH, STUD_HEIGHT, STUD_RADIUS, bodySize, boardOrigin } from './dims.ts'
 import type { BrickDef } from './catalog.ts'
 
-const studGeometry = new THREE.CylinderGeometry(STUD_RADIUS, STUD_RADIUS, STUD_HEIGHT, 22)
+/** stud7a inner wall is 9 LDU. The pin sits below the rim so the stud reads hollow. */
+const STUD_INNER = 3.6
+const STUD_PIN_RADIUS = 1.8
+const STUD_PIN_RECESS = 1.15
+const CHAMFER = 0.55
+
 const bodyGeos = new Map<string, THREE.BufferGeometry>()
 
 function cached(key: string, make: () => THREE.BufferGeometry): THREE.BufferGeometry {
@@ -14,28 +20,117 @@ function cached(key: string, make: () => THREE.BufferGeometry): THREE.BufferGeom
   return geo
 }
 
-function rectGeometry(def: BrickDef): THREE.BufferGeometry {
-  return cached(`rect:${def.studsX}x${def.studsZ}x${def.height}`, () => {
-    const { w, d } = bodySize(def.studsX, def.studsZ)
-    return new THREE.BoxGeometry(w, def.height, d)
+function hollowStudGeometry(): THREE.BufferGeometry {
+  return cached('stud-hollow', () => {
+    const rim = STUD_HEIGHT
+    const pinTop = rim - STUD_PIN_RECESS
+    const floor = 0.25
+    // One solid of revolution: outer wall, open cup, recessed center pin.
+    const points = [
+      new THREE.Vector2(STUD_RADIUS, 0),
+      new THREE.Vector2(STUD_RADIUS, rim),
+      new THREE.Vector2(STUD_INNER, rim),
+      new THREE.Vector2(STUD_INNER, floor),
+      new THREE.Vector2(STUD_PIN_RADIUS, floor),
+      new THREE.Vector2(STUD_PIN_RADIUS, pinTop),
+      new THREE.Vector2(0.04, pinTop),
+    ]
+    const geo = new THREE.LatheGeometry(points, 18)
+    geo.translate(0, -rim / 2, 0)
+    geo.computeVertexNormals()
+    return geo
   })
 }
 
-/** Full-height back, thin lip at +X — a chunky Duplo-style ramp. */
+const studGeometry = hollowStudGeometry()
+
+function rectGeometry(def: BrickDef): THREE.BufferGeometry {
+  return cached(`rect:${def.studsX}x${def.studsZ}x${def.height}`, () => {
+    const { w, d } = bodySize(def.studsX, def.studsZ)
+    const radius = Math.min(CHAMFER, w / 2 - 0.05, d / 2 - 0.05, def.height / 2 - 0.05)
+    return new RoundedBoxGeometry(w, def.height, d, 2, Math.max(0.05, radius))
+  })
+}
+
+/**
+ * Design 11198 side profile: a circular inside bow.
+ * LDraw places the soffit center 24 LDU (9.6mm) above the bottom with radius 40 LDU (16mm),
+ * so the opening meets the floor and the crown is 32 LDU (12.8mm) thick.
+ */
+function insideBowGeometry(def: BrickDef): THREE.BufferGeometry {
+  return cached(`bow:${def.studsX}x${def.studsZ}x${def.height}`, () => {
+    const { w, d } = bodySize(def.studsX, def.studsZ)
+    const scale = w / (4 * PITCH)
+    const radius = 16 * scale
+    const centerY = 9.6 * scale
+    const halfChord = Math.sqrt(Math.max(0, radius * radius - centerY * centerY))
+    const hw = w / 2
+    const foot = Math.min(halfChord, hw - 1)
+    const leftAngle = Math.atan2(-centerY, -foot)
+    const rightAngle = Math.atan2(-centerY, foot)
+    // Long way over the crown. The short sweep between these angles dips below the floor.
+    const sweep = rightAngle - leftAngle - Math.PI * 2
+    const steps = 32
+
+    const shape = new THREE.Shape()
+    shape.moveTo(-hw, 0)
+    shape.lineTo(-foot, 0)
+    for (let i = 1; i <= steps; i++) {
+      const angle = leftAngle + (i / steps) * sweep
+      shape.lineTo(Math.cos(angle) * radius, centerY + Math.sin(angle) * radius)
+    }
+    shape.lineTo(hw, 0)
+    shape.lineTo(hw, def.height)
+    shape.lineTo(-hw, def.height)
+    shape.closePath()
+
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: d,
+      bevelEnabled: false,
+      curveSegments: 1,
+      steps: 1,
+    })
+    geo.translate(0, 0, -d / 2)
+    geo.computeVertexNormals()
+    return geo
+  })
+}
+
+/**
+ * Design 35114 side profile, high end at -X.
+ * One stud of flat top, then atan(9.6 / 32) ≈ 17° down to a toe at half height.
+ */
 function slopeGeometry(def: BrickDef): THREE.BufferGeometry {
   return cached(`slope:${def.studsX}x${def.studsZ}x${def.height}`, () => {
     const { w, d } = bodySize(def.studsX, def.studsZ)
-    const geo = new THREE.BoxGeometry(w, def.height, d)
-    const pos = geo.attributes.position
-    const lip = Math.min(2.4, def.height * 0.14)
-    for (let i = 0; i < pos.count; i++) {
-      if (pos.getX(i) > 0.001 && pos.getY(i) > 0) {
-        pos.setY(i, -def.height / 2 + lip)
-      }
-    }
-    pos.needsUpdate = true
+    const hw = w / 2
+    const flat = w / def.studsX
+    const toeY = def.height / 2
+    const shape = new THREE.Shape()
+    shape.moveTo(-hw, 0)
+    shape.lineTo(hw, 0)
+    shape.lineTo(hw, toeY)
+    shape.lineTo(-hw + flat, def.height)
+    shape.lineTo(-hw, def.height)
+    shape.closePath()
+
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: d,
+      bevelEnabled: false,
+      curveSegments: 1,
+      steps: 1,
+    })
+    geo.translate(0, 0, -d / 2)
     geo.computeVertexNormals()
     return geo
+  })
+}
+
+function roundGeometry(def: BrickDef): THREE.BufferGeometry {
+  return cached(`round:${def.studsX}x${def.studsZ}x${def.height}`, () => {
+    const { w, d } = bodySize(def.studsX, def.studsZ)
+    const radius = Math.min(w, d) / 2
+    return new THREE.CylinderGeometry(radius, radius, def.height, 40)
   })
 }
 
@@ -75,39 +170,19 @@ function addRectBody(group: THREE.Group, def: BrickDef, mat: THREE.Material, gho
 }
 
 function addArchBody(group: THREE.Group, def: BrickDef, mat: THREE.Material, ghost?: boolean): void {
-  const { w, d } = bodySize(def.studsX, def.studsZ)
-  const pillarW = bodySize(1, def.studsZ).w
-  const openingH = def.height * 0.7
-  const lintelH = def.height - openingH
-
-  const pillarGeo = cached(`arch-pillar:${pillarW}:${def.height}:${d}`, () => new THREE.BoxGeometry(pillarW, def.height, d))
-  const lintelGeo = cached(`arch-lintel:${w}:${lintelH}:${d}`, () => new THREE.BoxGeometry(w, lintelH, d))
-
-  const left = new THREE.Mesh(pillarGeo, mat)
-  left.position.set(-w / 2 + pillarW / 2, def.height / 2, 0)
-  const right = new THREE.Mesh(pillarGeo, mat)
-  right.position.set(w / 2 - pillarW / 2, def.height / 2, 0)
-  const lintel = new THREE.Mesh(lintelGeo, mat)
-  lintel.position.set(0, openingH + lintelH / 2, 0)
-
-  for (const mesh of [left, right, lintel]) {
-    shade(mesh, ghost)
-    group.add(mesh)
-  }
+  const body = new THREE.Mesh(insideBowGeometry(def), mat)
+  shade(body, ghost)
+  group.add(body)
 }
 
 function addSlopeBody(group: THREE.Group, def: BrickDef, mat: THREE.Material, ghost?: boolean): void {
   const body = new THREE.Mesh(slopeGeometry(def), mat)
-  body.position.y = def.height / 2
   shade(body, ghost)
   group.add(body)
 }
 
 function addRoundBody(group: THREE.Group, def: BrickDef, mat: THREE.Material, ghost?: boolean): void {
-  const { w, d } = bodySize(def.studsX, def.studsZ)
-  const radius = Math.min(w, d) / 2
-  const geo = cached(`round:${radius}:${def.height}`, () => new THREE.CylinderGeometry(radius, radius, def.height, 36))
-  const body = new THREE.Mesh(geo, mat)
+  const body = new THREE.Mesh(roundGeometry(def), mat)
   body.position.y = def.height / 2
   shade(body, ghost)
   group.add(body)
@@ -146,7 +221,7 @@ export function createBrickGroup(
   else addRectBody(group, def, mat, ghost)
 
   if (def.shape === 'slope') {
-    // Studs sit on the tall back column so the ramp stays readable.
+    // Studs stay on the flat high end (local -X, the first stud row).
     addStuds(group, def, mat, ghost, (ix) => ix === 0)
   } else {
     addStuds(group, def, mat, ghost)

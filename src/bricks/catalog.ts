@@ -154,18 +154,22 @@ export const BRICK_CATALOG: BrickDef[] = [
   },
   {
     kind: BrickKind.Arch2x4,
-    label: '2×4 arch',
-    hint: 'Bridge with a tunnel',
+    // Design 11198 — brick 2×4×2 inside bow. Circular soffit, full studs on the flat top.
+    // The longer 18652 (2×8×2) uses a different two-center curve, so it is not a scaled copy.
+    label: '2×4×2 arch',
+    hint: 'Bridge arch',
     studsX: 4,
     studsZ: 2,
-    // Two bricks tall so the inverted-U tunnel reads from the side.
     height: BRICK_HEIGHT * 2,
     shape: 'arch',
   },
   {
     kind: BrickKind.Slope2x3,
-    label: '2×3 slope',
-    hint: 'Ramp brick',
+    // Design 35114 — 3×2 slope. Catalogs call the angle 33; the mould is the shallower
+    // ~17° roof: one stud of flat top (with studs), then a slope down to a half-height toe.
+    // Kind id stays slope2x3 so older saves still resolve.
+    label: '3×2 slope',
+    hint: 'Gentle ramp',
     studsX: 3,
     studsZ: 2,
     height: BRICK_HEIGHT,
@@ -173,11 +177,13 @@ export const BRICK_CATALOG: BrickDef[] = [
   },
   {
     kind: BrickKind.Round2x2,
-    label: '2×2 round',
-    hint: 'Cylinder brick',
+    // Design 98225 — round 2×2×2. The cylinder is two brick-units tall.
+    // Top studs are the normal 2×2 grid, not a single center stud.
+    label: '2×2×2 round',
+    hint: 'Tall round brick',
     studsX: 2,
     studsZ: 2,
-    height: BRICK_HEIGHT,
+    height: BRICK_HEIGHT * 2,
     shape: 'round',
   },
 ]

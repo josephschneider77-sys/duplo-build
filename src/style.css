@@ -626,21 +626,23 @@ body {
 }
 .mini[data-shape='arch2x4']::after { display: none; }
 
-.mini[data-shape='slope2x3'] {
-  width: 48px;
-  height: 26px;
+.mini[data-shape='slope2x2'] {
+  width: 34px;
+  height: 30px;
   background: #ff9f1c;
-  clip-path: polygon(0 0, 32% 0, 100% 50%, 100% 100%, 0 100%);
+  clip-path: polygon(0 0, 50% 0, 100% 67%, 100% 100%, 0 100%);
   border-radius: 0;
   box-shadow: none;
 }
-.mini[data-shape='slope2x3']::before {
+.mini[data-shape='slope2x2']::before {
   background: #ffc56e;
-  left: 4px;
+  width: 7px;
+  height: 7px;
+  left: 5px;
   top: -4px;
-  box-shadow: 10px 0 0 #ffc56e;
+  box-shadow: 9px 0 0 #ffc56e;
 }
-.mini[data-shape='slope2x3']::after { display: none; }
+.mini[data-shape='slope2x2']::after { display: none; }
 
 .mini[data-shape='round2x2'] {
   width: 26px;

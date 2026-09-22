@@ -1,6 +1,6 @@
 import * as THREE from 'three'
 import { defFor, footprint, type BrickDef, type BrickKind } from '../bricks/catalog.ts'
-import { PITCH } from '../bricks/dims.ts'
+import { PITCH, PLATE_HEIGHT } from '../bricks/dims.ts'
 
 /** Hard cap so a packed baseplate stays a few hundred boxes, not one per triangle. */
 const MAX_DEBRIS = 480
@@ -96,9 +96,10 @@ function gridSlots(def: BrickDef): Slot[] {
           ly = sy / 2
         }
         if (def.shape === 'slope' && layers === 1) {
-          // Full brick at local −X, half-brick toe at +X — same as the roof tile.
+          // Design 6474: 1½-brick high end at local −X, plate-height toe at +X.
+          const toe = PLATE_HEIGHT / def.height
           const t = cols <= 1 ? 1 : 1 - col / (cols - 1)
-          sy = def.height * (0.5 + 0.5 * t)
+          sy = def.height * (toe + (1 - toe) * t)
           ly = sy / 2
         }
         if (def.shape === 'round') {

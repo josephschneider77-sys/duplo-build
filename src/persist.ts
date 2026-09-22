@@ -1,17 +1,23 @@
-import { BRICK_CATALOG, defFor, footprint, type BrickKind } from './bricks/catalog.ts'
+import { BRICK_CATALOG, BrickKind, defFor, footprint, type BrickKind as BrickKindId } from './bricks/catalog.ts'
 import { BRICK_COLORS } from './bricks/colors.ts'
+import { BASEPLATE_STUDS, BRICK_HEIGHT, boardOrigin } from './bricks/dims.ts'
 
 export const STORAGE_KEY = 'duplo-build-joe-v1'
 
 export type SavedBrick = {
   id: string
-  kind: BrickKind
+  kind: BrickKindId
   colorId: string
   ox: number
   oz: number
   rot: number
   y: number
 }
+
+/** Retired 3×2 roof tile (35114). Loads become the 2×2×1½ slope. */
+const LEGACY_SLOPE_KIND = 'slope2x3'
+
+type ParsedBrick = Omit<SavedBrick, 'kind'> & { kind: BrickKindId | typeof LEGACY_SLOPE_KIND }
 
 export type SaveState = {
   version: 1 | 2
@@ -60,8 +66,71 @@ export function reseatLegacyHeights(bricks: SavedBrick[]): SavedBrick[] {
   })
 }
 
-function isKind(value: unknown): value is BrickKind {
+function isKind(value: unknown): value is BrickKindId {
   return typeof value === 'string' && BRICK_CATALOG.some((d) => d.kind === value)
+}
+
+function isStoredKind(value: unknown): value is ParsedBrick['kind'] {
+  return value === LEGACY_SLOPE_KIND || isKind(value)
+}
+
+function clampOrigin(value: number, span: number): number {
+  const origin = boardOrigin()
+  const max = origin + BASEPLATE_STUDS - span
+  return Math.min(max, Math.max(origin, Math.round(value)))
+}
+
+/**
+ * Design 6474 replaced 35114. Keep the stud origin and rotation, shrink the
+ * footprint onto the board, and lift anything that was sitting on the old
+ * one-brick roof so it rests on the taller slope. Pieces that only used the
+ * dropped third stud stay where they were — nothing is removed.
+ */
+export function migrateLegacySlopes(bricks: ParsedBrick[]): SavedBrick[] {
+  const migratedIds = new Set<string>()
+  const rewritten: SavedBrick[] = bricks.map((brick) => {
+    if (brick.kind !== LEGACY_SLOPE_KIND) return { ...brick, kind: brick.kind }
+    migratedIds.add(brick.id)
+    const { w, d } = footprint(2, 2, brick.rot)
+    return {
+      ...brick,
+      kind: BrickKind.Slope2x2,
+      ox: clampOrigin(brick.ox, w),
+      oz: clampOrigin(brick.oz, d),
+    }
+  })
+  if (migratedIds.size === 0) return rewritten
+
+  const sorted = [...rewritten].sort((a, b) => a.y - b.y || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+  const cells = new Map<string, { histTop: number; added: number }>()
+  const shift = new Map<string, number>()
+  for (const brick of sorted) {
+    const def = defFor(brick.kind)
+    const { w, d } = footprint(def.studsX, def.studsZ, brick.rot)
+    let added = 0
+    for (let i = 0; i < w; i++) {
+      for (let j = 0; j < d; j++) {
+        const cell = cells.get(`${brick.ox + i},${brick.oz + j}`)
+        if (cell && Math.abs(brick.y - cell.histTop) <= 0.05) added = Math.max(added, cell.added)
+      }
+    }
+    shift.set(brick.id, added)
+    const migrated = migratedIds.has(brick.id)
+    const histH = migrated ? BRICK_HEIGHT : def.height
+    const histTop = brick.y + histH
+    const cellAdded = added + (migrated ? BRICK_HEIGHT * 0.5 : 0)
+    for (let i = 0; i < w; i++) {
+      for (let j = 0; j < d; j++) {
+        const key = `${brick.ox + i},${brick.oz + j}`
+        const prev = cells.get(key)
+        if (!prev || histTop >= prev.histTop - 0.05) cells.set(key, { histTop, added: cellAdded })
+      }
+    }
+  }
+  return rewritten.map((brick) => {
+    const dy = shift.get(brick.id) ?? 0
+    return dy > 0 ? { ...brick, y: brick.y + dy } : brick
+  })
 }
 
 function isColor(value: unknown): boolean {
@@ -72,20 +141,23 @@ export function loadBuild(): SavedBrick[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return []
-    const parsed = JSON.parse(raw) as Partial<SaveState>
+    const parsed = JSON.parse(raw) as { version?: unknown; bricks?: unknown }
     if ((parsed.version !== 1 && parsed.version !== 2) || !Array.isArray(parsed.bricks)) return []
-    const bricks = parsed.bricks.filter(
-      (b): b is SavedBrick =>
-        !!b &&
-        typeof b.id === 'string' &&
-        isKind(b.kind) &&
-        isColor(b.colorId) &&
-        Number.isFinite(b.ox) &&
-        Number.isFinite(b.oz) &&
-        Number.isFinite(b.rot) &&
-        Number.isFinite(b.y),
-    )
-    return parsed.version === 1 ? reseatLegacyHeights(bricks) : bricks
+    const bricks = parsed.bricks.filter((b): b is ParsedBrick => {
+      if (!b || typeof b !== 'object') return false
+      const brick = b as Record<string, unknown>
+      return (
+        typeof brick.id === 'string' &&
+        isStoredKind(brick.kind) &&
+        isColor(brick.colorId) &&
+        Number.isFinite(brick.ox) &&
+        Number.isFinite(brick.oz) &&
+        Number.isFinite(brick.rot) &&
+        Number.isFinite(brick.y)
+      )
+    })
+    const migrated = migrateLegacySlopes(bricks)
+    return parsed.version === 1 ? reseatLegacyHeights(migrated) : migrated
   } catch {
     return []
   }

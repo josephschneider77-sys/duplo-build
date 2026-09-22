@@ -15,7 +15,7 @@ export const BrickKind = {
   Plate4x4: 'plate4x4',
   Plate4x8: 'plate4x8',
   Arch2x4: 'arch2x4',
-  Slope2x3: 'slope2x3',
+  Slope2x2: 'slope2x2',
   Round2x2: 'round2x2',
 } as const
 
@@ -166,16 +166,16 @@ export const BRICK_CATALOG: BrickDef[] = [
     shape: 'arch',
   },
   {
-    kind: BrickKind.Slope2x3,
-    // Design 35114 — 3×2 roof tile. Tall end is one brick. The toe is half a
-    // brick, then the plane rises over two studs onto a one-stud flat roof.
-    // Studs only on that roof. Kind id stays slope2x3 so older saves load.
-    // The 22° label is the part's degree name; the mesh uses the rise/run above.
-    label: '3×2 slope 22°',
-    hint: 'Roof tile',
-    studsX: 3,
+    kind: BrickKind.Slope2x2,
+    // Design 6474 — Duplo brick 2×2×1½, slope ~45° (BrickLink).
+    // Mesh follows LDraw: rise (H − plate) over one stud of run, about 50°.
+    // High end is −X with a one-stud flat roof; the toe is one plate tall.
+    // Two studs on that roof. Older saves used slope2x3 (35114); load remaps them.
+    label: '2×2 slope',
+    hint: 'Chunky roof',
+    studsX: 2,
     studsZ: 2,
-    height: BRICK_HEIGHT,
+    height: BRICK_HEIGHT * 1.5,
     shape: 'slope',
   },
   {

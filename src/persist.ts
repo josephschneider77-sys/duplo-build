@@ -23,10 +23,18 @@ const LEGACY_SLOPE_KIND = 'slope2x3'
 type ParsedBrick = Omit<SavedBrick, 'kind'> & { kind: BrickKindId | typeof LEGACY_SLOPE_KIND }
 
 export type SaveState = {
-  /** 3 adds paintId. 1 and 2 still load; a missing paintId becomes Plain. */
-  version: 1 | 2 | 3
+  /**
+   * 3 adds paintId. 1 and 2 still load; a missing paintId becomes Plain.
+   * 4 records `boardStuds`. Older saves were written on the 24×24 plate.
+   */
+  version: 1 | 2 | 3 | 4
+  /** Studs along one edge of the plate this build was saved on. */
+  boardStuds?: number
   bricks: SavedBrick[]
 }
+
+/** Versions 1–3 were saved when the playable plate was 24×24. */
+const LEGACY_PLATE_STUDS = 24
 
 /**
  * Version 1 stored absolute heights from plate = 6.4 and round = one brick.
@@ -82,6 +90,26 @@ function clampOrigin(value: number, span: number): number {
   const origin = boardOrigin()
   const max = origin + BASEPLATE_STUDS - span
   return Math.min(max, Math.max(origin, Math.round(value)))
+}
+
+function plateOrigin(studs: number): number {
+  return -Math.floor(studs / 2)
+}
+
+/** True when at least one stud cell of the footprint lies on a centered plate. */
+function overlapsPlate(ox: number, oz: number, w: number, d: number, studs: number): boolean {
+  const origin = plateOrigin(studs)
+  const max = origin + studs
+  return ox + w > origin && ox < max && oz + d > origin && oz < max
+}
+
+/** Versions 1–3 omit `boardStuds`; those builds sat on the 24×24 plate. */
+function plateStudsFromSave(version: unknown, boardStuds: unknown): number {
+  if (version === 4 && typeof boardStuds === 'number' && Number.isFinite(boardStuds)) {
+    const studs = Math.floor(boardStuds)
+    if (studs >= 2 && studs <= 256) return studs
+  }
+  return LEGACY_PLATE_STUDS
 }
 
 /**
@@ -145,8 +173,14 @@ export function loadBuild(): SavedBrick[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (!raw) return []
-    const parsed = JSON.parse(raw) as { version?: unknown; bricks?: unknown }
-    if ((parsed.version !== 1 && parsed.version !== 2 && parsed.version !== 3) || !Array.isArray(parsed.bricks)) return []
+    const parsed = JSON.parse(raw) as { version?: unknown; boardStuds?: unknown; bricks?: unknown }
+    if (
+      (parsed.version !== 1 && parsed.version !== 2 && parsed.version !== 3 && parsed.version !== 4) ||
+      !Array.isArray(parsed.bricks)
+    ) {
+      return []
+    }
+    const savedStuds = plateStudsFromSave(parsed.version, parsed.boardStuds)
     const bricks = parsed.bricks.flatMap((b): ParsedBrick[] => {
       if (!b || typeof b !== 'object') return []
       const brick = b as Record<string, unknown>
@@ -176,9 +210,15 @@ export function loadBuild(): SavedBrick[] {
     })
     const migrated = migrateLegacySlopes(bricks)
     const seated = parsed.version === 1 ? reseatLegacyHeights(migrated) : migrated
-    return seated.map((brick) =>
-      brickAcceptsFace(defFor(brick.kind)) ? brick : { ...brick, paintId: DEFAULT_PAINT_ID },
-    )
+    return seated.flatMap((brick) => {
+      const def = defFor(brick.kind)
+      const { w, d } = footprint(def.studsX, def.studsZ, brick.rot)
+      // Keep a brick only if it was on the plate it was saved against and still
+      // meets the plate we play on. A 24×24 save cannot invent pieces in the new ring.
+      if (!overlapsPlate(brick.ox, brick.oz, w, d, savedStuds)) return []
+      if (!overlapsPlate(brick.ox, brick.oz, w, d, BASEPLATE_STUDS)) return []
+      return [brickAcceptsFace(def) ? brick : { ...brick, paintId: DEFAULT_PAINT_ID }]
+    })
   } catch {
     return []
   }
@@ -186,7 +226,7 @@ export function loadBuild(): SavedBrick[] {
 
 export function saveBuild(bricks: SavedBrick[]): void {
   try {
-    const payload: SaveState = { version: 3, bricks }
+    const payload: SaveState = { version: 4, boardStuds: BASEPLATE_STUDS, bricks }
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payload))
   } catch {
     // Quota or private mode — building still works.

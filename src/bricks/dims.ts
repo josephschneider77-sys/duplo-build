@@ -16,8 +16,12 @@ export const STUD_RADIUS = 4.8
 export const STUD_HEIGHT = 4
 export const BODY_GAP = 0.7
 export const BASEPLATE_THICKNESS = 3.2
-/** Was 12×12; 24×24 is ~4× the usable area at the same pitch. */
-export const BASEPLATE_STUDS = 24
+/**
+ * Was 12×12, then 24×24 (~4× area). 28×28 is 784 cells — about 36% more
+ * usable area than 24×24 (576), near a +40% area bump. Even, so
+ * `boardOrigin` stays `-n/2`.
+ */
+export const BASEPLATE_STUDS = 28
 
 export function bodySize(studsX: number, studsZ: number): { w: number; d: number } {
   return {

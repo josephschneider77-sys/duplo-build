@@ -4,7 +4,7 @@ import { playBurst, playPop } from './audio.ts'
 import { BrickKind, brickAcceptsFace, defFor, footprint, type BrickDef } from './bricks/catalog.ts'
 import { colorById, DEFAULT_COLOR_ID } from './bricks/colors.ts'
 import { DEFAULT_PAINT_ID, isPaintId } from './bricks/paints.ts'
-import { PITCH, onBoard } from './bricks/dims.ts'
+import { BASEPLATE_STUDS, PITCH, onBoard } from './bricks/dims.ts'
 import { footprintOrigin, rebuildCovers, seatOnCovers, type Cover } from './bricks/stack.ts'
 import { createBaseplate, createBrickGroup, disableRaycast, tagBrick } from './bricks/geometry.ts'
 import { createBurst, type Burst } from './fx/burst.ts'
@@ -50,6 +50,18 @@ const DRAG_PX = 12
 /** Extra screen padding so a finger just beside the shadow can still grab it. */
 const NEAR_PX = 28
 const MAX_STACK = 24
+
+/**
+ * Empty-board eye, fog, orbit limit, and shadow box were tuned on a 24-stud
+ * plate (eye 280, 300, 340; target y 8; max distance 820; shadow ±320).
+ * Scale that rig with the plate so a fresh board fills the view the same way.
+ * Tower auto-zoom still adds height on top of this baseline.
+ */
+const PLATE_FRAME = BASEPLATE_STUDS / 24
+const BASE_TARGET_Y = 8 * PLATE_FRAME
+const BASE_MAX_DIST = 820 * PLATE_FRAME
+/** ±320 covered a 24-stud plate (half-width 192) with a 5/3 margin. */
+const SHADOW_REACH = ((BASEPLATE_STUDS * PITCH) / 2) * (5 / 3)
 
 type SnapCell = { ox: number; oz: number; y: number; ok: boolean }
 
@@ -97,18 +109,20 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   renderer.setClearColor(0xd9c4ff, 1)
 
   const scene = new THREE.Scene()
-  scene.fog = new THREE.Fog(0xd9c4ff, 720, 1680)
+  // Fog distances tracked the 24-stud plate. Scale with the plate so the
+  // far edge stays just as soft when the camera pulls back.
+  scene.fog = new THREE.Fog(0xd9c4ff, 720 * PLATE_FRAME, 1680 * PLATE_FRAME)
   scene.background = new THREE.Color(0xd9c4ff)
 
   const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2800)
-  camera.position.set(280, 300, 340)
+  camera.position.set(280 * PLATE_FRAME, 300 * PLATE_FRAME, 340 * PLATE_FRAME)
 
   const controls = new OrbitControls(camera, canvas)
   controls.enableDamping = true
   controls.dampingFactor = 0.08
-  controls.target.set(0, 8, 0)
+  controls.target.set(0, BASE_TARGET_Y, 0)
   controls.minDistance = 80
-  controls.maxDistance = 820
+  controls.maxDistance = BASE_MAX_DIST
   controls.minPolarAngle = 0.18
   controls.maxPolarAngle = Math.PI / 2 - 0.04
   controls.screenSpacePanning = false
@@ -124,8 +138,6 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   }
 
   const BASE_CAM_DIST = camera.position.distanceTo(controls.target)
-  const BASE_TARGET_Y = 8
-  const BASE_MAX_DIST = 820
   let userDriving = false
   let userPinnedCloser = false
   let autoDistance = BASE_CAM_DIST
@@ -148,15 +160,16 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   sun.shadow.mapSize.set(2048, 2048)
   sun.shadow.camera.near = 20
   sun.shadow.camera.far = 900
-  sun.shadow.camera.left = -320
-  sun.shadow.camera.right = 320
-  sun.shadow.camera.top = 320
-  sun.shadow.camera.bottom = -320
+  sun.shadow.camera.left = -SHADOW_REACH
+  sun.shadow.camera.right = SHADOW_REACH
+  sun.shadow.camera.top = SHADOW_REACH
+  sun.shadow.camera.bottom = -SHADOW_REACH
   scene.add(sun)
   scene.add(new THREE.DirectionalLight(0xff9ad5, 0.35).translateX(-140).translateY(80).translateZ(-70))
 
+  const tableRadius = BASEPLATE_STUDS * PITCH * 1.25
   const table = new THREE.Mesh(
-    new THREE.CylinderGeometry(480, 480, 6, 64),
+    new THREE.CylinderGeometry(tableRadius, tableRadius, 6, 64),
     new THREE.MeshStandardMaterial({ color: 0xfce7f3, roughness: 0.85 }),
   )
   table.position.y = -7.6

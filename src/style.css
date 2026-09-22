@@ -140,21 +140,24 @@ body {
 .tool:hover,
 .brick-btn:hover,
 .brick-trigger:hover,
-.swatch:hover {
+.swatch:hover,
+.face-chip:hover {
   transform: translateY(-1px);
 }
 
 .tool:active,
 .brick-btn:active,
 .brick-trigger:active,
-.swatch:active {
+.swatch:active,
+.face-chip:active {
   transform: translateY(1px);
 }
 
 .tool:focus-visible,
 .brick-btn:focus-visible,
 .brick-trigger:focus-visible,
-.swatch:focus-visible {
+.swatch:focus-visible,
+.face-chip:focus-visible {
   outline: 3px solid var(--purple);
   outline-offset: 2px;
 }
@@ -174,7 +177,8 @@ body {
 .tool:disabled,
 .brick-btn:disabled,
 .brick-trigger:disabled,
-.swatch:disabled {
+.swatch:disabled,
+.face-chip:disabled {
   opacity: 0.45;
   cursor: default;
   transform: none;
@@ -396,6 +400,7 @@ body {
 @media (min-width: 900px) {
   .dock-main {
     flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
   }
 
@@ -403,8 +408,12 @@ body {
     flex: 1 1 260px;
   }
 
-  .dock-main > .dock-row:last-child {
-    flex: 0 1 auto;
+  .color-picker-row {
+    flex: 2 1 320px;
+  }
+
+  .paint-picker-row {
+    flex: 1 0 100%;
   }
 }
 
@@ -675,6 +684,83 @@ body {
 .swatch[aria-pressed='true'] {
   outline: 3px solid var(--purple);
   outline-offset: 2px;
+}
+
+.paint-picker {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.paint-tip {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.68rem;
+  font-weight: 800;
+  line-height: 1.2;
+}
+
+.paint-tip[hidden] {
+  display: none;
+}
+
+.face-row {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  min-width: 0;
+  padding: 2px 2px 4px;
+  touch-action: pan-x;
+  -webkit-overflow-scrolling: touch;
+}
+
+.face-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px;
+  border-radius: 14px;
+  border: 2px solid var(--stroke);
+  background: var(--panel-strong);
+  color: var(--ink);
+  box-shadow: none;
+  cursor: pointer;
+  flex: none;
+  font: inherit;
+  font-weight: 800;
+  touch-action: manipulation;
+}
+
+.face-thumb {
+  width: 36px;
+  height: 36px;
+  display: block;
+  pointer-events: none;
+}
+
+.face-chip-label {
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1;
+  white-space: nowrap;
+  padding: 0 6px;
+}
+
+.face-chip[aria-pressed='true'] {
+  border-color: var(--purple);
+  background: linear-gradient(180deg, #f3e8ff, #e9d5ff);
+  color: var(--purple);
+}
+
+.face-chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .hint {

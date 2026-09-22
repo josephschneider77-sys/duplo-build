@@ -2,7 +2,8 @@ import * as THREE from 'three'
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js'
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js'
 import { BASEPLATE_STUDS, BASEPLATE_THICKNESS, BODY_GAP, BRICK_HEIGHT, PITCH, PLATE_HEIGHT, STUD_HEIGHT, STUD_RADIUS, bodySize, boardOrigin } from './dims.ts'
-import type { BrickDef } from './catalog.ts'
+import { brickAcceptsFace, type BrickDef } from './catalog.ts'
+import { faceCanvasTexture } from './paints.ts'
 
 /** Inner wall of the open stud. The pin is a second cylinder, not a boolean cut. */
 const STUD_INNER = 3.5
@@ -215,7 +216,7 @@ export function plasticMaterial(hex: number, opts?: { ghost?: boolean; valid?: b
 export function createBrickGroup(
   def: BrickDef,
   hex: number,
-  opts?: { ghost?: boolean; valid?: boolean },
+  opts?: { ghost?: boolean; valid?: boolean; paintId?: string },
 ): THREE.Group {
   const group = new THREE.Group()
   group.name = def.kind
@@ -235,9 +236,49 @@ export function createBrickGroup(
     addStuds(group, def, mat, ghost)
   }
 
+  attachFace(group, def, opts?.paintId, ghost)
+
   // Keep a slightly larger pick volume than the visual gap.
   group.userData.pickSize = { w, d, h: def.height }
   return group
+}
+
+const FACE_SCALE = 0.7
+/** Just proud of the front face so the print does not z-fight the plastic. */
+const FACE_OFFSET = 0.06
+
+function stickerPlane(w: number, h: number): THREE.BufferGeometry {
+  return cached(`sticker:${w.toFixed(2)}x${h.toFixed(2)}`, () => new THREE.PlaneGeometry(w, h))
+}
+
+function stickerMaterial(texture: THREE.CanvasTexture, ghost?: boolean): THREE.MeshBasicMaterial {
+  return new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    opacity: ghost ? 0.92 : 1,
+    depthWrite: false,
+    toneMapped: false,
+    premultipliedAlpha: false,
+  })
+}
+
+/** Local +Z is the front, so Rotate carries the print with the brick. */
+function attachFace(group: THREE.Group, def: BrickDef, paintId: string | undefined, ghost?: boolean): void {
+  if (!paintId || paintId === 'none' || !brickAcceptsFace(def)) return
+  const texture = faceCanvasTexture(paintId)
+  if (!texture) return
+  const { w, d } = bodySize(def.studsX, def.studsZ)
+  const mat = stickerMaterial(texture, ghost)
+  const mesh = new THREE.Mesh(stickerPlane(w * FACE_SCALE, def.height * FACE_SCALE), mat)
+  mesh.position.set(0, def.height / 2, d / 2 + FACE_OFFSET)
+  mesh.name = 'face'
+  mesh.userData.faceDecal = true
+  mesh.castShadow = false
+  mesh.receiveShadow = false
+  mesh.renderOrder = 2
+  group.add(mesh)
+  group.userData.faceMaterial = mat
+  group.userData.paintId = paintId
 }
 
 export function createBaseplate(): THREE.Group {

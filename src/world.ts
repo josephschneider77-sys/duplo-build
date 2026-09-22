@@ -41,6 +41,10 @@ type HudBridge = {
 }
 
 const TAP_PX = 10
+/** Movement past this, after a press on a locked shadow, slides it instead of placing. */
+const DRAG_PX = 12
+/** Extra screen padding so a finger just beside the shadow can still grab it. */
+const NEAR_PX = 28
 const MAX_STACK = 24
 
 type SnapCell = { ox: number; oz: number; y: number; ok: boolean }
@@ -164,6 +168,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   const groundPoint = new THREE.Vector3()
   const lockedBox = new THREE.Box3()
   const lockedHit = new THREE.Vector3()
+  const screenCorner = new THREE.Vector3()
 
   let kind: BrickKind = BrickKind.Brick2x2
   let colorId = DEFAULT_COLOR_ID
@@ -179,6 +184,11 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   let shadowLocked = false
   /** Stud origin of a locked shadow. Kept even when that seat turns invalid. */
   let lockedCell: { ox: number; oz: number } | null = null
+  /** Press began on or near the locked shadow, so this gesture slides it instead of orbiting. */
+  let dragCandidate = false
+  let draggingLock = false
+  /** Last valid cell visited while sliding. Invalid releases fall back here. */
+  let dragSeat: { ox: number; oz: number; y: number } | null = null
   let hoverId: string | null = null
   let raf = 0
   let disposed = false
@@ -366,7 +376,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     return raycaster.intersectObjects(scene.children, true)
   }
 
-  function snapFromEvent(event: PointerEvent): (SnapCell & { point: THREE.Vector3 }) | null {
+  function snapFromEvent(event: PointerEvent, assist = true): (SnapCell & { point: THREE.Vector3 }) | null {
     const hits = pickFromEvent(event).filter((h) => {
       const obj = h.object
       return obj.userData.baseplate || obj.userData.brickId
@@ -382,7 +392,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     let oz = Math.round(groundPoint.z / PITCH - d / 2)
 
     const hitId = hits[0]?.object.userData.brickId as string | undefined
-    const hitBrick = hitId ? bricks.find((b) => b.id === hitId) : undefined
+    const hitBrick = assist && hitId ? bricks.find((b) => b.id === hitId) : undefined
     if (hitBrick) {
       const hitDef = defFor(hitBrick.kind)
       const hitFp = footprint(hitDef.studsX, hitDef.studsZ, hitBrick.rot)
@@ -442,9 +452,83 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     hud.onChange()
   }
 
+  function endDragGesture(): void {
+    dragCandidate = false
+    draggingLock = false
+    controls.enabled = true
+  }
+
   function releaseLock(): void {
     shadowLocked = false
     lockedCell = null
+    dragSeat = null
+    pointerDown.active = false
+    endDragGesture()
+  }
+
+  function restoreLockedGhost(): void {
+    const seated = seatLocked()
+    if (seated) showGhostAt(seated.ox, seated.oz, seated.y, seated.ok)
+  }
+
+  function pointerNearLockedGhost(clientX: number, clientY: number): boolean {
+    if (!ghost) return false
+    lockedBox.setFromObject(ghost)
+    if (lockedBox.isEmpty()) return false
+    const rect = canvas.getBoundingClientRect()
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    const xs = [lockedBox.min.x, lockedBox.max.x]
+    const ys = [lockedBox.min.y, lockedBox.max.y]
+    const zs = [lockedBox.min.z, lockedBox.max.z]
+    for (const x of xs) {
+      for (const y of ys) {
+        for (const z of zs) {
+          screenCorner.set(x, y, z).project(camera)
+          if (screenCorner.z > 1) continue
+          const sx = (screenCorner.x * 0.5 + 0.5) * rect.width + rect.left
+          const sy = (-screenCorner.y * 0.5 + 0.5) * rect.height + rect.top
+          minX = Math.min(minX, sx)
+          minY = Math.min(minY, sy)
+          maxX = Math.max(maxX, sx)
+          maxY = Math.max(maxY, sy)
+        }
+      }
+    }
+    if (!Number.isFinite(minX)) return false
+    return (
+      clientX >= minX - NEAR_PX &&
+      clientX <= maxX + NEAR_PX &&
+      clientY >= minY - NEAR_PX &&
+      clientY <= maxY + NEAR_PX
+    )
+  }
+
+  function pressOnLockedShadow(event: PointerEvent): boolean {
+    if (!shadowLocked || !ghost) return false
+    const snap = snapFromEvent(event)
+    if (hitsLockedGhost(snap?.point ?? null) || footprintHasPoint(snap?.point ?? null)) return true
+    return pointerNearLockedGhost(event.clientX, event.clientY)
+  }
+
+  function previewDrag(event: PointerEvent): void {
+    const snap = snapFromEvent(event, false)
+    if (!snap) return
+    showGhostAt(snap.ox, snap.oz, snap.y, snap.ok)
+    if (snap.ok) dragSeat = { ox: snap.ox, oz: snap.oz, y: snap.y }
+  }
+
+  function finishDrag(event: PointerEvent): void {
+    const snap = snapFromEvent(event, false)
+    const next = snap?.ok ? snap : dragSeat
+    dragSeat = null
+    if (next) {
+      lockShadow(next.ox, next.oz, next.y)
+      return
+    }
+    restoreLockedGhost()
   }
 
   function cancelLock(): void {
@@ -547,6 +631,17 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     return true
   }
 
+  function onPointerDownCapture(event: PointerEvent): void {
+    if (exploding || event.target !== canvas) return
+    if (mode !== 'place' || !shadowLocked) return
+    if (event.button !== 0 && event.pointerType === 'mouse') return
+    if (!pressOnLockedShadow(event)) return
+    dragCandidate = true
+    draggingLock = false
+    dragSeat = null
+    controls.enabled = false
+  }
+
   function onPointerDown(event: PointerEvent): void {
     if (exploding) return
     if (event.target !== canvas) return
@@ -554,10 +649,18 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     pointerDown.x = event.clientX
     pointerDown.y = event.clientY
     pointerDown.pointerId = event.pointerId
+    if (dragCandidate) canvas.setPointerCapture(event.pointerId)
   }
 
   function onPointerMove(event: PointerEvent): void {
     if (exploding) return
+    if (dragCandidate && pointerDown.active && event.pointerId === pointerDown.pointerId) {
+      const dx = event.clientX - pointerDown.x
+      const dy = event.clientY - pointerDown.y
+      if (!draggingLock && dx * dx + dy * dy > DRAG_PX * DRAG_PX) draggingLock = true
+      if (draggingLock) previewDrag(event)
+      return
+    }
     if (event.target !== canvas) {
       if (ghost && !shadowLocked) ghost.visible = false
       highlight(null)
@@ -572,19 +675,35 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   }
 
   function onPointerUp(event: PointerEvent): void {
-    if (exploding) {
-      pointerDown.active = false
-      return
-    }
     if (!pointerDown.active || pointerDown.pointerId !== event.pointerId) return
-    pointerDown.active = false
-    if (event.target !== canvas) return
     const dx = event.clientX - pointerDown.x
     const dy = event.clientY - pointerDown.y
-    if (dx * dx + dy * dy > TAP_PX * TAP_PX) return
+    const moved = dx * dx + dy * dy
+    const grabbed = dragCandidate
+    const dragged = draggingLock || (grabbed && moved > DRAG_PX * DRAG_PX)
+    pointerDown.active = false
+    endDragGesture()
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId)
+    if (exploding) return
     if (event.button !== 0 && event.pointerType === 'mouse') return
+    if (dragged) {
+      finishDrag(event)
+      return
+    }
+    if (!grabbed && event.target !== canvas) return
+    if (!grabbed && moved > TAP_PX * TAP_PX) return
     if (mode === 'delete') deleteAt(event)
     else onPlaceTap(event)
+  }
+
+  function onPointerCancel(event: PointerEvent): void {
+    if (!pointerDown.active || pointerDown.pointerId !== event.pointerId) return
+    const dragged = draggingLock
+    pointerDown.active = false
+    dragSeat = null
+    endDragGesture()
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId)
+    if (dragged && shadowLocked) restoreLockedGhost()
   }
 
   function onPointerLeave(): void {
@@ -621,7 +740,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     const { distance: needed, targetY } = neededFraming(top)
     controls.maxDistance = Math.max(BASE_MAX_DIST, needed + 120)
 
-    if (userDriving) {
+    if (userDriving || draggingLock) {
       lastSeenTop = top
       return
     }
@@ -698,9 +817,11 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   for (const saved of loadBuild()) addPlaced(saved, false)
   persist()
 
+  canvas.addEventListener('pointerdown', onPointerDownCapture, true)
   canvas.addEventListener('pointerdown', onPointerDown)
   canvas.addEventListener('pointermove', onPointerMove)
   canvas.addEventListener('pointerup', onPointerUp)
+  canvas.addEventListener('pointercancel', onPointerCancel)
   canvas.addEventListener('pointerleave', onPointerLeave)
   canvas.addEventListener('contextmenu', (e) => e.preventDefault())
   window.addEventListener('resize', onResize)
@@ -830,9 +951,11 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
       cancelAnimationFrame(raf)
       burst?.dispose()
       burst = null
+      canvas.removeEventListener('pointerdown', onPointerDownCapture, true)
       canvas.removeEventListener('pointerdown', onPointerDown)
       canvas.removeEventListener('pointermove', onPointerMove)
       canvas.removeEventListener('pointerup', onPointerUp)
+      canvas.removeEventListener('pointercancel', onPointerCancel)
       canvas.removeEventListener('pointerleave', onPointerLeave)
       window.removeEventListener('resize', onResize)
       controls.dispose()

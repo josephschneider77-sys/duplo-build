@@ -130,7 +130,7 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     if (placeHint) {
       if (locked) placeHint.textContent = ''
       else if (mode === 'delete') placeHint.textContent = ' · Tap a brick to remove it'
-      else if (shadowLocked) placeHint.textContent = ' · Tap again to place · tap elsewhere to move'
+      else if (shadowLocked) placeHint.textContent = ' · Drag to move · tap to place · tap elsewhere to jump lock'
       else placeHint.textContent = ' · Shadow follows you → tap to lock → tap again to place'
     }
   }

@@ -85,12 +85,17 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   const BASE_TARGET_Y = 8
   const BASE_MAX_DIST = 820
   let userDriving = false
+  let userPinnedCloser = false
   let autoDistance = BASE_CAM_DIST
+  let lastSeenTop = 0
   controls.addEventListener('start', () => {
     userDriving = true
   })
   controls.addEventListener('end', () => {
     userDriving = false
+    const { distance: needed } = neededFraming(tallestTop())
+    const dist = camera.position.distanceTo(controls.target)
+    userPinnedCloser = dist < needed - 8
   })
 
   scene.add(new THREE.HemisphereLight(0xffe6f7, 0x8ec5ff, 1.05))
@@ -399,9 +404,11 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   }
 
   function neededFraming(top: number): { distance: number; targetY: number } {
+    const portrait = window.innerHeight > window.innerWidth
+    const rise = Math.max(0, top)
     return {
-      distance: Math.min(2200, BASE_CAM_DIST + Math.max(0, top) * 1.7),
-      targetY: BASE_TARGET_Y + top * 0.38,
+      distance: Math.min(2200, BASE_CAM_DIST + rise * (portrait ? 2.05 : 1.7)),
+      targetY: BASE_TARGET_Y + rise * (portrait ? 0.5 : 0.38),
     }
   }
 
@@ -417,7 +424,16 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     const { distance: needed, targetY } = neededFraming(top)
     controls.maxDistance = Math.max(BASE_MAX_DIST, needed + 120)
 
-    if (userDriving) return
+    if (userDriving) {
+      lastSeenTop = top
+      return
+    }
+
+    const grew = top > lastSeenTop + 0.05
+    lastSeenTop = top
+    if (grew && camera.position.distanceTo(controls.target) < needed - 1.5) {
+      userPinnedCloser = false
+    }
 
     const ty = controls.target.y
     const nextY = ty + (targetY - ty) * 0.05
@@ -427,11 +443,11 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     }
 
     const dist = camera.position.distanceTo(controls.target)
-    if (dist < needed - 1.5) {
+    if (!userPinnedCloser && dist < needed - 1.5) {
       const next = dist + (needed - dist) * 0.07
       setOrbitDistance(next)
       autoDistance = next
-    } else if (dist > needed + 45 && Math.abs(dist - autoDistance) < 18) {
+    } else if (!userPinnedCloser && dist > needed + 45 && Math.abs(dist - autoDistance) < 18) {
       const next = dist + (needed - dist) * 0.035
       setOrbitDistance(next)
       autoDistance = next

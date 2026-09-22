@@ -124,6 +124,15 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
         countEl.textContent = n === 0 ? 'Empty board' : n === 1 ? '1 brick' : `${n} bricks`
       }
     }
+    const shadowLocked = world.isShadowLocked()
+    root.dataset.shadow = mode === 'delete' ? 'off' : shadowLocked ? 'locked' : 'follow'
+    const placeHint = root.querySelector<HTMLElement>('[data-place-hint]')
+    if (placeHint) {
+      if (locked) placeHint.textContent = ''
+      else if (mode === 'delete') placeHint.textContent = ' · Tap a brick to remove it'
+      else if (shadowLocked) placeHint.textContent = ' · Tap again to place · tap elsewhere to move'
+      else placeHint.textContent = ' · Shadow follows you → tap to lock → tap again to place'
+    }
   }
 
   root.addEventListener('click', (event) => {
@@ -148,12 +157,13 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
       world.rotate()
     } else if (target.dataset.action === 'delete') {
       world.setMode(world.getMode() === 'delete' ? 'place' : 'delete')
-      toast(world.getMode() === 'delete' ? 'Tap a brick to remove it' : 'Tap the board to build')
+      toast(world.getMode() === 'delete' ? 'Tap a brick to remove it' : 'Tap to lock the shadow, tap again to place')
       clearArmed = false
     } else if (target.dataset.action === 'undo') {
       world.undo()
       clearArmed = false
     } else if (target.dataset.action === 'clear') {
+      world.cancelLock()
       if (!clearArmed) {
         clearArmed = true
         toast('Tap Clear again to wipe the board')

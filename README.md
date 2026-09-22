@@ -15,7 +15,7 @@ Bricks use **Duplo-compatible proportions** (about 2× System / LEGO scale: 16-u
    
    A **4×2** brick is just a rotated **2×4** — use Rotate / `R`.
 2. Choose a color (eight bright + pastel plastics).
-3. Move over the green baseplate — a ghost brick snaps to the stud grid.
+3. Move over the green **24×24** baseplate (~4× the original 12×12 area) — a ghost brick snaps to the stud grid. Saved builds stay in the same stud cells.
 4. Click or tap to place. Stack on top of existing bricks when the footprint is flat.
 5. **Rotate** (button or `R`) before placing long pieces.
 6. **Delete** mode: tap a brick to remove it (`X` / Delete also toggles).

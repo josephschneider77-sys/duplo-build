@@ -55,18 +55,18 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   renderer.setClearColor(0xd9c4ff, 1)
 
   const scene = new THREE.Scene()
-  scene.fog = new THREE.Fog(0xd9c4ff, 420, 980)
+  scene.fog = new THREE.Fog(0xd9c4ff, 720, 1680)
   scene.background = new THREE.Color(0xd9c4ff)
 
-  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2000)
-  camera.position.set(150, 170, 190)
+  const camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 2800)
+  camera.position.set(280, 300, 340)
 
   const controls = new OrbitControls(camera, canvas)
   controls.enableDamping = true
   controls.dampingFactor = 0.08
   controls.target.set(0, 8, 0)
   controls.minDistance = 80
-  controls.maxDistance = 420
+  controls.maxDistance = 820
   controls.minPolarAngle = 0.18
   controls.maxPolarAngle = Math.PI / 2 - 0.04
   controls.screenSpacePanning = false
@@ -84,20 +84,20 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   scene.add(new THREE.HemisphereLight(0xffe6f7, 0x8ec5ff, 1.05))
 
   const sun = new THREE.DirectionalLight(0xfff4e0, 1.35)
-  sun.position.set(120, 220, 80)
+  sun.position.set(200, 360, 140)
   sun.castShadow = true
-  sun.shadow.mapSize.set(1024, 1024)
+  sun.shadow.mapSize.set(2048, 2048)
   sun.shadow.camera.near = 20
-  sun.shadow.camera.far = 520
-  sun.shadow.camera.left = -180
-  sun.shadow.camera.right = 180
-  sun.shadow.camera.top = 180
-  sun.shadow.camera.bottom = -180
+  sun.shadow.camera.far = 900
+  sun.shadow.camera.left = -320
+  sun.shadow.camera.right = 320
+  sun.shadow.camera.top = 320
+  sun.shadow.camera.bottom = -320
   scene.add(sun)
-  scene.add(new THREE.DirectionalLight(0xff9ad5, 0.35).translateX(-90).translateY(60).translateZ(-40))
+  scene.add(new THREE.DirectionalLight(0xff9ad5, 0.35).translateX(-140).translateY(80).translateZ(-70))
 
   const table = new THREE.Mesh(
-    new THREE.CylinderGeometry(260, 260, 6, 64),
+    new THREE.CylinderGeometry(480, 480, 6, 64),
     new THREE.MeshStandardMaterial({ color: 0xfce7f3, roughness: 0.85 }),
   )
   table.position.y = -7.6

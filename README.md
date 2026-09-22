@@ -16,7 +16,7 @@ Bricks use **Duplo-compatible proportions** (about 2× System scale: 16-unit stu
    A **4×2** brick is just a rotated **2×4** — use Rotate / `R`.
 2. Choose a color (eight bright + pastel plastics).
 3. Move over the green **24×24** baseplate (~4× the original 12×12 area) — a translucent shadow snaps to the stud grid. Saved builds stay in the same stud cells.
-4. **Tap once** to lock the shadow. **Tap that shadow again** to place the brick. Tap a different spot to move the lock. One tap never places by itself. Stack when **at least one stud clicks** — overhangs and gaps are OK, like real Duplo. The camera eases out as a tower grows.
+4. **Tap once** to lock the shadow. **Drag** that shadow to slide it on the studs, or tap another spot to jump the lock. **Tap the shadow** without dragging to place the brick. One quick tap never places by itself. Stack when **at least one stud clicks** — overhangs and gaps are OK, like real Duplo. The camera eases out as a tower grows.
 5. **Rotate** (button or `R`) before or after locking. A locked shadow turns in place. Escape, Undo, Clear, or picking another brick cancels the lock.
 6. **Delete** mode: tap a brick to remove it (`X` / Delete also toggles).
 7. **Undo** last place, delete, or clear (`Z` or Ctrl/Cmd+Z).

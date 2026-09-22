@@ -81,6 +81,18 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     TWO: THREE.TOUCH.DOLLY_PAN,
   }
 
+  const BASE_CAM_DIST = camera.position.distanceTo(controls.target)
+  const BASE_TARGET_Y = 8
+  const BASE_MAX_DIST = 820
+  let userDriving = false
+  let autoDistance = BASE_CAM_DIST
+  controls.addEventListener('start', () => {
+    userDriving = true
+  })
+  controls.addEventListener('end', () => {
+    userDriving = false
+  })
+
   scene.add(new THREE.HemisphereLight(0xffe6f7, 0x8ec5ff, 1.05))
 
   const sun = new THREE.DirectionalLight(0xfff4e0, 1.35)
@@ -147,21 +159,32 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     }
   }
 
+  /** Duplo-style: ≥1 stud can click. Same-height supports; gaps/overhangs are fine. */
   function support(ox: number, oz: number, w: number, d: number): { ok: boolean; y: number } {
-    let y: number | null = null
+    let supportY: number | null = null
+    let onBoardCount = 0
+    let baseCount = 0
     for (let i = 0; i < w; i++) {
       for (let j = 0; j < d; j++) {
         const sx = ox + i
         const sz = oz + j
-        if (!onBoard(sx, sz)) return { ok: false, y: 0 }
+        if (!onBoard(sx, sz)) continue
+        onBoardCount += 1
         const h = heights.get(cellKey(sx, sz)) ?? 0
-        if (y === null) y = h
-        else if (Math.abs(h - y) > 0.05) return { ok: false, y }
+        if (h > 0.05) {
+          if (supportY === null) supportY = h
+          else if (Math.abs(h - supportY) > 0.05) return { ok: false, y: supportY }
+        } else {
+          baseCount += 1
+        }
       }
     }
-    const stack = (y ?? 0) / defFor(BrickKind.Brick2x2).height
-    if (stack >= MAX_STACK) return { ok: false, y: y ?? 0 }
-    return { ok: true, y: y ?? 0 }
+    if (onBoardCount === 0) return { ok: false, y: 0 }
+    const y = supportY ?? 0
+    if (supportY === null && baseCount === 0) return { ok: false, y: 0 }
+    const stack = y / defFor(BrickKind.Brick2x2).height
+    if (stack >= MAX_STACK) return { ok: false, y }
+    return { ok: true, y }
   }
 
   function toSaved(b: Placed): SavedBrick {
@@ -291,7 +314,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
 
   function placeAtGhost(): boolean {
     if (!ghostPose) {
-      hud.toast('Needs a flat spot on the board')
+      hud.toast('Need at least one stud to click onto')
       playPop(false)
       return false
     }
@@ -367,6 +390,54 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     highlight(null)
   }
 
+  function tallestTop(): number {
+    let top = 0
+    for (const b of bricks) {
+      top = Math.max(top, b.y + defFor(b.kind).height)
+    }
+    return top
+  }
+
+  function neededFraming(top: number): { distance: number; targetY: number } {
+    return {
+      distance: Math.min(2200, BASE_CAM_DIST + Math.max(0, top) * 1.7),
+      targetY: BASE_TARGET_Y + top * 0.38,
+    }
+  }
+
+  function setOrbitDistance(next: number): void {
+    const offset = camera.position.clone().sub(controls.target)
+    if (offset.lengthSq() < 1e-6) offset.set(0.2, 0.4, 1)
+    offset.setLength(Math.max(controls.minDistance, Math.min(controls.maxDistance, next)))
+    camera.position.copy(controls.target).add(offset)
+  }
+
+  function easeFraming(): void {
+    const top = tallestTop()
+    const { distance: needed, targetY } = neededFraming(top)
+    controls.maxDistance = Math.max(BASE_MAX_DIST, needed + 120)
+
+    if (userDriving) return
+
+    const ty = controls.target.y
+    const nextY = ty + (targetY - ty) * 0.05
+    if (Math.abs(nextY - ty) > 0.02) {
+      camera.position.y += nextY - ty
+      controls.target.y = nextY
+    }
+
+    const dist = camera.position.distanceTo(controls.target)
+    if (dist < needed - 1.5) {
+      const next = dist + (needed - dist) * 0.07
+      setOrbitDistance(next)
+      autoDistance = next
+    } else if (dist > needed + 45 && Math.abs(dist - autoDistance) < 18) {
+      const next = dist + (needed - dist) * 0.035
+      setOrbitDistance(next)
+      autoDistance = next
+    }
+  }
+
   function onResize(): void {
     const w = window.innerWidth
     const h = window.innerHeight
@@ -377,6 +448,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
 
   function tick(): void {
     if (disposed) return
+    easeFraming()
     controls.update()
     renderer.render(scene, camera)
     raf = requestAnimationFrame(tick)

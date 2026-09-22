@@ -17,7 +17,9 @@ export type WorldApi = {
   setMode: (mode: ToolMode) => void
   undo: () => void
   clear: () => void
+  cancelLock: () => void
   isExploding: () => boolean
+  isShadowLocked: () => boolean
   getKind: () => BrickKind
   getColorId: () => string
   getMode: () => ToolMode
@@ -40,6 +42,36 @@ type HudBridge = {
 
 const TAP_PX = 10
 const MAX_STACK = 24
+
+type SnapCell = { ox: number; oz: number; y: number; ok: boolean }
+
+type PlaceDecision =
+  | { type: 'lock'; ox: number; oz: number; y: number }
+  | { type: 'place' }
+  | { type: 'move'; ox: number; oz: number; y: number }
+  | { type: 'reject' }
+
+/**
+ * Two-tap place: the first valid tap locks the shadow, a later tap on that
+ * shadow commits it, and a tap on a different valid cell moves the lock.
+ */
+function resolvePlaceTap(opts: {
+  locked: boolean
+  lockValid: boolean
+  sameCell: boolean
+  onShadow: boolean
+  snap: SnapCell | null
+}): PlaceDecision {
+  const { locked, lockValid, sameCell, onShadow, snap } = opts
+  if (!locked) {
+    if (snap?.ok) return { type: 'lock', ox: snap.ox, oz: snap.oz, y: snap.y }
+    return { type: 'reject' }
+  }
+  const confirm = (sameCell || onShadow) && lockValid && !(sameCell && snap && !snap.ok)
+  if (confirm) return { type: 'place' }
+  if (snap?.ok) return { type: 'move', ox: snap.ox, oz: snap.oz, y: snap.y }
+  return { type: 'reject' }
+}
 
 export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi {
   const renderer = new THREE.WebGLRenderer({
@@ -129,6 +161,9 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   const raycaster = new THREE.Raycaster()
   const pointerNdc = new THREE.Vector2()
   const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0)
+  const groundPoint = new THREE.Vector3()
+  const lockedBox = new THREE.Box3()
+  const lockedHit = new THREE.Vector3()
 
   let kind: BrickKind = BrickKind.Brick2x2
   let colorId = DEFAULT_COLOR_ID
@@ -141,6 +176,9 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   let ghost: THREE.Group | null = null
   let ghostValid = false
   let ghostPose: { ox: number; oz: number; y: number } | null = null
+  let shadowLocked = false
+  /** Stud origin of a locked shadow. Kept even when that seat turns invalid. */
+  let lockedCell: { ox: number; oz: number } | null = null
   let hoverId: string | null = null
   let raf = 0
   let disposed = false
@@ -247,6 +285,65 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     return true
   }
 
+  function ghostMaterial(): THREE.MeshStandardMaterial | null {
+    let mat: THREE.MeshStandardMaterial | null = null
+    ghost?.traverse((obj) => {
+      if (mat) return
+      if (obj instanceof THREE.Mesh && obj.material instanceof THREE.MeshStandardMaterial) mat = obj.material
+    })
+    return mat
+  }
+
+  function paintGhost(valid: boolean): void {
+    if (!ghost) return
+    ghostValid = valid
+    const mat = ghostMaterial()
+    if (!mat) return
+    const hex = colorById(colorId).hex
+    if (!valid) {
+      mat.color.setHex(0xff4d6d)
+      mat.opacity = 0.48
+      mat.emissive.setHex(0x4a0010)
+      mat.emissiveIntensity = 0.18
+      return
+    }
+    mat.color.setHex(hex)
+    if (shadowLocked) {
+      mat.opacity = 0.8
+      mat.emissive.setHex(0xffffff)
+      mat.emissiveIntensity = 0.28
+    } else {
+      mat.opacity = 0.64
+      mat.emissive.setHex(0x000000)
+      mat.emissiveIntensity = 0
+    }
+  }
+
+  function pulseLockedGhost(): void {
+    if (!shadowLocked || !ghostValid || !ghost?.visible) return
+    const mat = ghostMaterial()
+    if (!mat) return
+    const wave = 0.5 + 0.5 * Math.sin(performance.now() / 220)
+    mat.opacity = 0.64 + wave * 0.24
+    mat.emissiveIntensity = 0.1 + wave * 0.34
+  }
+
+  function showGhostAt(ox: number, oz: number, y: number, valid: boolean): void {
+    if (!ghost) return
+    poseMesh(ghost, defFor(kind), ox, oz, y, rot)
+    ghost.visible = true
+    paintGhost(valid)
+    ghostPose = valid ? { ox, oz, y } : null
+  }
+
+  function seatLocked(): { ox: number; oz: number; y: number; ok: boolean } | null {
+    if (!lockedCell) return null
+    const def = defFor(kind)
+    const { w, d } = footprint(def.studsX, def.studsZ, rot)
+    const seat = support(lockedCell.ox, lockedCell.oz, w, d)
+    return { ox: lockedCell.ox, oz: lockedCell.oz, y: seat.y, ok: seat.ok }
+  }
+
   function rebuildGhost(): void {
     if (ghost) scene.remove(ghost)
     ghost = null
@@ -257,18 +354,8 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     disableRaycast(ghost)
     ghost.visible = false
     scene.add(ghost)
-  }
-
-  function setGhostValid(valid: boolean): void {
-    if (!ghost || ghostValid === valid) return
-    ghostValid = valid
-    const hex = colorById(colorId).hex
-    ghost.traverse((obj) => {
-      if (obj instanceof THREE.Mesh && obj.material instanceof THREE.MeshStandardMaterial) {
-        obj.material.color.setHex(valid ? hex : 0xff4d6d)
-        obj.material.opacity = valid ? 0.52 : 0.4
-      }
-    })
+    const seated = shadowLocked ? seatLocked() : null
+    if (seated) showGhostAt(seated.ox, seated.oz, seated.y, seated.ok)
   }
 
   function pickFromEvent(event: PointerEvent): THREE.Intersection[] {
@@ -279,13 +366,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     return raycaster.intersectObjects(scene.children, true)
   }
 
-  function updateGhost(event: PointerEvent): void {
-    if (mode !== 'place' || !ghost) {
-      if (ghost) ghost.visible = false
-      ghostPose = null
-      return
-    }
-
+  function snapFromEvent(event: PointerEvent): (SnapCell & { point: THREE.Vector3 }) | null {
     const hits = pickFromEvent(event).filter((h) => {
       const obj = h.object
       return obj.userData.baseplate || obj.userData.brickId
@@ -293,17 +374,12 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
 
     // Aim with the ground plane so one screen point always maps to the same
     // cells (a brick-top hit is closer to the camera and would shift x/z).
-    const point = new THREE.Vector3()
-    if (!raycaster.ray.intersectPlane(groundPlane, point)) {
-      ghost.visible = false
-      ghostPose = null
-      return
-    }
+    if (!raycaster.ray.intersectPlane(groundPlane, groundPoint)) return null
 
     const def = defFor(kind)
     const { w, d } = footprint(def.studsX, def.studsZ, rot)
-    let ox = Math.round(point.x / PITCH - w / 2)
-    let oz = Math.round(point.z / PITCH - d / 2)
+    let ox = Math.round(groundPoint.x / PITCH - w / 2)
+    let oz = Math.round(groundPoint.z / PITCH - d / 2)
 
     const hitId = hits[0]?.object.userData.brickId as string | undefined
     const hitBrick = hitId ? bricks.find((b) => b.id === hitId) : undefined
@@ -317,10 +393,65 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     }
 
     const seat = support(ox, oz, w, d)
-    poseMesh(ghost, def, ox, oz, seat.y, rot)
-    ghost.visible = true
-    setGhostValid(seat.ok)
-    ghostPose = seat.ok ? { ox, oz, y: seat.y } : null
+    return { ox, oz, y: seat.y, ok: seat.ok, point: groundPoint }
+  }
+
+  function footprintHasPoint(point: THREE.Vector3 | null): boolean {
+    if (!point || !lockedCell) return false
+    const def = defFor(kind)
+    const { w, d } = footprint(def.studsX, def.studsZ, rot)
+    const sx = Math.floor(point.x / PITCH)
+    const sz = Math.floor(point.z / PITCH)
+    return sx >= lockedCell.ox && sx < lockedCell.ox + w && sz >= lockedCell.oz && sz < lockedCell.oz + d
+  }
+
+  /** True when the pointer ray meets the locked shadow before the ground. */
+  function hitsLockedGhost(ground: THREE.Vector3 | null): boolean {
+    if (!ghost || !shadowLocked) return false
+    lockedBox.setFromObject(ghost)
+    if (lockedBox.isEmpty()) return false
+    if (!raycaster.ray.intersectBox(lockedBox, lockedHit)) return false
+    if (!ground) return true
+    const origin = raycaster.ray.origin
+    return lockedHit.distanceToSquared(origin) <= ground.distanceToSquared(origin) + 4
+  }
+
+  function updateGhost(event: PointerEvent): void {
+    if (mode !== 'place' || !ghost) {
+      if (ghost) ghost.visible = false
+      if (!shadowLocked) ghostPose = null
+      return
+    }
+    if (shadowLocked) {
+      ghost.visible = true
+      return
+    }
+    const snap = snapFromEvent(event)
+    if (!snap) {
+      ghost.visible = false
+      ghostPose = null
+      return
+    }
+    showGhostAt(snap.ox, snap.oz, snap.y, snap.ok)
+  }
+
+  function lockShadow(ox: number, oz: number, y: number): void {
+    shadowLocked = true
+    lockedCell = { ox, oz }
+    showGhostAt(ox, oz, y, true)
+    hud.onChange()
+  }
+
+  function releaseLock(): void {
+    shadowLocked = false
+    lockedCell = null
+  }
+
+  function cancelLock(): void {
+    if (exploding || !shadowLocked) return
+    releaseLock()
+    if (ghost) paintGhost(ghostValid)
+    hud.onChange()
   }
 
   function highlight(id: string | null): void {
@@ -351,10 +482,55 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
       rot,
       y: ghostPose.y,
     }
+    releaseLock()
     addPlaced(data, true)
     persist()
     playPop(true)
     return true
+  }
+
+  function onPlaceTap(event: PointerEvent): void {
+    const snap = snapFromEvent(event)
+    if (!shadowLocked) {
+      if (!snap) {
+        if (ghost) ghost.visible = false
+        ghostPose = null
+      } else {
+        showGhostAt(snap.ox, snap.oz, snap.y, snap.ok)
+      }
+    }
+
+    const sameCell = !!snap && !!lockedCell && snap.ox === lockedCell.ox && snap.oz === lockedCell.oz
+    const onShadow = shadowLocked && (footprintHasPoint(snap?.point ?? null) || hitsLockedGhost(snap?.point ?? null))
+    const decision = resolvePlaceTap({
+      locked: shadowLocked,
+      lockValid: !!ghostPose,
+      sameCell,
+      onShadow,
+      snap,
+    })
+
+    if (decision.type === 'lock' || decision.type === 'move') {
+      lockShadow(decision.ox, decision.oz, decision.y)
+      hud.toast(decision.type === 'lock' ? 'Shadow locked' : 'Shadow moved')
+      return
+    }
+    if (decision.type === 'place') {
+      if (placeAtGhost()) updateGhost(event)
+      return
+    }
+    if (sameCell && snap && !snap.ok) {
+      showGhostAt(snap.ox, snap.oz, snap.y, false)
+      hud.toast('Need a stud to click onto')
+      playPop(false)
+      return
+    }
+    if (!shadowLocked || !ghostPose) {
+      hud.toast('Need a stud to click onto')
+      playPop(false)
+      return
+    }
+    hud.toast('Tap the shadow to place')
   }
 
   function deleteAt(event: PointerEvent): boolean {
@@ -383,7 +559,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   function onPointerMove(event: PointerEvent): void {
     if (exploding) return
     if (event.target !== canvas) {
-      if (ghost) ghost.visible = false
+      if (ghost && !shadowLocked) ghost.visible = false
       highlight(null)
       return
     }
@@ -408,15 +584,11 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     if (dx * dx + dy * dy > TAP_PX * TAP_PX) return
     if (event.button !== 0 && event.pointerType === 'mouse') return
     if (mode === 'delete') deleteAt(event)
-    else {
-      updateGhost(event)
-      placeAtGhost()
-      updateGhost(event)
-    }
+    else onPlaceTap(event)
   }
 
   function onPointerLeave(): void {
-    if (ghost) ghost.visible = false
+    if (ghost && !shadowLocked) ghost.visible = false
     highlight(null)
   }
 
@@ -502,6 +674,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     undoStack.push({ type: 'clear', bricks: snapshot })
     rebuildHeights()
     exploding = false
+    releaseLock()
     ghostPose = null
     persist()
     hud.toast('All cleared — undo if that was a whoops')
@@ -513,6 +686,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     const dt = lastTick === 0 ? 0.016 : Math.min(0.05, (now - lastTick) / 1000)
     lastTick = now
     if (burst && !burst.update(dt)) finishBurst()
+    pulseLockedGhost()
     easeFraming()
     controls.update()
     renderer.render(scene, camera)
@@ -536,6 +710,8 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     setKind(next) {
       if (exploding) return
       kind = next
+      releaseLock()
+      ghostPose = null
       rebuildGhost()
       hud.onChange()
     },
@@ -547,7 +723,28 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     },
     rotate() {
       if (exploding) return
+      const prev = rot
       rot = (rot + 1) % 4
+      if (shadowLocked && lockedCell && ghost) {
+        const def = defFor(kind)
+        const oldFp = footprint(def.studsX, def.studsZ, prev)
+        const nextFp = footprint(def.studsX, def.studsZ, rot)
+        const cx = lockedCell.ox + oldFp.w / 2
+        const cz = lockedCell.oz + oldFp.d / 2
+        let ox = Math.round(cx - nextFp.w / 2)
+        let oz = Math.round(cz - nextFp.d / 2)
+        let seat = support(ox, oz, nextFp.w, nextFp.d)
+        if (!seat.ok) {
+          const kept = support(lockedCell.ox, lockedCell.oz, nextFp.w, nextFp.d)
+          if (kept.ok) {
+            ox = lockedCell.ox
+            oz = lockedCell.oz
+            seat = kept
+          }
+        }
+        lockedCell = { ox, oz }
+        showGhostAt(ox, oz, seat.y, seat.ok)
+      }
       hud.toast(rot % 2 === 0 ? 'Straight' : 'Turned')
       hud.onChange()
     },
@@ -555,14 +752,20 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
       if (exploding) return
       mode = next
       highlight(null)
+      releaseLock()
+      ghostPose = null
       rebuildGhost()
       hud.onChange()
     },
     undo() {
       if (exploding) return
+      releaseLock()
+      ghostPose = null
+      if (ghost) ghost.visible = false
       const action = undoStack.pop()
       if (!action) {
         hud.toast('Nothing to undo')
+        hud.onChange()
         return
       }
       if (action.type === 'place') removeById(action.brick.id, false)
@@ -576,8 +779,12 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     },
     clear() {
       if (exploding) return
+      releaseLock()
+      ghostPose = null
+      if (ghost) ghost.visible = false
       if (bricks.length === 0) {
         hud.toast('Board is already empty')
+        hud.onChange()
         return
       }
       // Keep the build in memory (and localStorage) until the pop finishes,
@@ -611,6 +818,8 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
       hud.onChange()
     },
     isExploding: () => exploding,
+    isShadowLocked: () => shadowLocked,
+    cancelLock,
     getKind: () => kind,
     getColorId: () => colorId,
     getMode: () => mode,

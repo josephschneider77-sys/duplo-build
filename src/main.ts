@@ -53,10 +53,11 @@ if (!webglOk()) {
     } else if (key === 'x' || key === 'backspace' || key === 'delete') {
       event.preventDefault()
       world.setMode(world.getMode() === 'delete' ? 'place' : 'delete')
-      ui.toast(world.getMode() === 'delete' ? 'Tap a brick to remove it' : 'Tap the board to build')
+      ui.toast(world.getMode() === 'delete' ? 'Tap a brick to remove it' : 'Tap to lock the shadow, tap again to place')
       ui.refresh()
     } else if (key === 'escape') {
-      world.setMode('place')
+      world.cancelLock()
+      if (world.getMode() !== 'place') world.setMode('place')
       ui.refresh()
     } else if (key >= '1' && key <= '9') {
       const def = BRICK_CATALOG[Number(key) - 1]

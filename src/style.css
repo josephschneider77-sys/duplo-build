@@ -234,6 +234,11 @@ body {
   border-color: #ff6bcb;
 }
 
+#hud[data-shadow='locked'] .dock::before {
+  border-color: var(--purple);
+  box-shadow: 0 10px 28px rgba(123, 63, 228, 0.32);
+}
+
 .dock-main,
 .dock-row,
 .hint {
@@ -675,7 +680,12 @@ body {
   color: var(--ink-soft);
   font-size: 0.72rem;
   font-weight: 700;
+  line-height: 1.35;
   text-align: center;
+}
+
+#hud[data-shadow='locked'] .hint {
+  color: var(--ink);
 }
 
 #webgl-fallback {

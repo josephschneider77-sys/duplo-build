@@ -314,7 +314,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
 
   function placeAtGhost(): boolean {
     if (!ghostPose) {
-      hud.toast('Need at least one stud to click onto')
+      hud.toast('Need a stud to click onto')
       playPop(false)
       return false
     }

@@ -167,11 +167,12 @@ export const BRICK_CATALOG: BrickDef[] = [
   },
   {
     kind: BrickKind.Slope2x3,
-    // Design 35114 — 3×2 slope. Tall end is one brick. A 1.2 lip at the front,
-    // then a 33° plane that rises 18 onto the flat roof. Studs only on that roof.
-    // Kind id stays slope2x3 so older saves load.
-    label: '3×2 slope',
-    hint: 'Ramp',
+    // Design 35114 — 3×2 roof tile. Tall end is one brick. The toe is half a
+    // brick, then the plane rises over two studs onto a one-stud flat roof.
+    // Studs only on that roof. Kind id stays slope2x3 so older saves load.
+    // The 22° label is the part's degree name; the mesh uses the rise/run above.
+    label: '3×2 slope 22°',
+    hint: 'Roof tile',
     studsX: 3,
     studsZ: 2,
     height: BRICK_HEIGHT,

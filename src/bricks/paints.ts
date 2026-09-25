@@ -1,5 +1,6 @@
 import * as THREE from 'three'
-import { drawStickerGlyph, hasStickerGlyph } from './glyphs.ts'
+import { DEFAULT_COLOR_ID, colorById } from './colors.ts'
+import { drawStickerGlyph, glyphFontReady, hasStickerGlyph, stickerTextureSize } from './glyphs.ts'
 
 /**
  * Original chunky stickers for the front of a 2×2 brick.
@@ -115,6 +116,10 @@ export function normalizePaintId(value: unknown): PaintId {
   return DEFAULT_PAINT_ID
 }
 
+export function paintUsesGlyph(paintId: string): boolean {
+  return hasStickerGlyph(normalizePaintId(paintId))
+}
+
 export function drawFace(ctx: CanvasRenderingContext2D, paintId: string, size: number): void {
   ctx.clearRect(0, 0, size, size)
   ctx.save()
@@ -129,28 +134,60 @@ export function drawFace(ctx: CanvasRenderingContext2D, paintId: string, size: n
   else if (paintId === 'shy') drawShy(ctx)
   else if (paintId === 'kitty') drawKitty(ctx)
   else if (paintId === 'puppy') drawPuppy(ctx)
-  else if (!drawStickerGlyph(ctx, paintId)) drawPlain(ctx)
+  else drawPlain(ctx)
   ctx.restore()
 }
 
-/** Shared 256² sticker. Null for Plain or an unknown id. */
-export function faceCanvasTexture(paintId: string): THREE.CanvasTexture | null {
+let stickerAnisotropy = 8
+
+/** Clamp sticker textures to the renderer's max anisotropy. Safe to call again. */
+export function setStickerAnisotropy(value: number): void {
+  stickerAnisotropy = Math.max(1, value)
+  for (const texture of textures.values()) {
+    if (texture.anisotropy === stickerAnisotropy) continue
+    texture.anisotropy = stickerAnisotropy
+    texture.needsUpdate = true
+  }
+}
+
+/**
+ * Shared sticker texture. Faces stay 256². Numbers and letters are a high-res
+ * canvas in the 2×2 face aspect, keyed by glyph and brick color so the ink
+ * follows a recolor and repeat bricks reuse one texture. Null for Plain, an
+ * unknown id, or a glyph requested before Fredoka is active.
+ */
+export function faceCanvasTexture(paintId: string, colorId: string = DEFAULT_COLOR_ID): THREE.CanvasTexture | null {
   const id = normalizePaintId(paintId)
   if (id === 'none') return null
-  const cached = textures.get(id)
+  const glyph = hasStickerGlyph(id)
+  if (glyph && !glyphFontReady()) return null
+  const color = colorById(colorId).id
+  const key = glyph ? `${id}:${color}` : id
+  const cached = textures.get(key)
   if (cached) return cached
   const canvas = document.createElement('canvas')
-  canvas.width = 256
-  canvas.height = 256
-  const ctx = canvas.getContext('2d')
-  if (!ctx) return null
-  drawFace(ctx, id, 256)
+  if (glyph) {
+    const { width, height } = stickerTextureSize()
+    canvas.width = width
+    canvas.height = height
+    const ctx = canvas.getContext('2d', { alpha: true })
+    if (!ctx || !drawStickerGlyph(ctx, id, color, width, height)) return null
+  } else {
+    canvas.width = 256
+    canvas.height = 256
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return null
+    drawFace(ctx, id, 256)
+  }
   const texture = new THREE.CanvasTexture(canvas)
   texture.colorSpace = THREE.SRGBColorSpace
-  texture.anisotropy = 8
+  texture.anisotropy = stickerAnisotropy
+  texture.minFilter = THREE.LinearMipmapLinearFilter
+  texture.magFilter = THREE.LinearFilter
+  texture.generateMipmaps = true
   texture.premultiplyAlpha = false
   texture.needsUpdate = true
-  textures.set(id, texture)
+  textures.set(key, texture)
   return texture
 }
 

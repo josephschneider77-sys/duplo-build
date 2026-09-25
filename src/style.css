@@ -868,17 +868,13 @@ body {
   padding: 0 6px;
 }
 
-.face-chip-mark {
-  font-family: Fredoka, Nunito, sans-serif;
-  font-size: 1.15rem;
-  font-weight: 700;
-  line-height: 1;
+.face-chip-art {
+  width: 52px;
+  height: auto;
+  aspect-ratio: 313 / 192;
+  display: block;
+  border-radius: 6px;
   pointer-events: none;
-}
-
-.face-chip[data-paint='10'] .face-chip-mark {
-  font-size: 0.95rem;
-  letter-spacing: -0.03em;
 }
 
 .face-chip[aria-pressed='true'] {

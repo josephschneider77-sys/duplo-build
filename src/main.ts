@@ -1,5 +1,6 @@
 import { unlockAudio } from './audio.ts'
 import { BRICK_CATALOG } from './bricks/catalog.ts'
+import { ensureGlyphFont } from './bricks/glyphs.ts'
 import { mountHud } from './ui/hud.ts'
 import { createWorld } from './world.ts'
 import './style.css'
@@ -24,6 +25,16 @@ function webglOk(): boolean {
 if (!webglOk()) {
   fallback?.removeAttribute('hidden')
 } else {
+  // Stickers are painted only after Fredoka is active, so the first frame
+  // cannot fall back to a system font.
+  void ensureGlyphFont()
+    .catch((err: unknown) => {
+      console.error(err)
+    })
+    .then(() => start(canvas, hudRoot))
+}
+
+function start(canvas: HTMLCanvasElement, hudRoot: HTMLElement): void {
   const hud = {
     onChange: () => {},
     toast: (message: string) => {

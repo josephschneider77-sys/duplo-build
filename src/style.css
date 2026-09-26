@@ -917,49 +917,154 @@ body {
   display: none;
 }
 
-@media (max-width: 720px) {
+/*
+ * Phones and short windows. Breakpoints match useCompactFraming() in frame.ts:
+ * width ≤ 780, or height ≤ 520 (landscape side panel).
+ * Tap targets stay at least 48px. Swatches and stickers share one scrolling row.
+ */
+@media (max-width: 780px), (max-height: 520px) {
   .topbar {
-    flex-direction: column;
-    align-items: stretch;
-    background: linear-gradient(180deg, rgba(255, 247, 255, 0.96), rgba(255, 247, 255, 0.72) 78%, transparent);
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: calc(6px + env(safe-area-inset-top)) 8px 6px;
+    background: linear-gradient(180deg, rgba(255, 247, 255, 0.94), rgba(255, 247, 255, 0.55) 72%, transparent);
   }
 
-  .tools {
-    justify-content: flex-start;
+  .brand {
+    gap: 8px;
+    flex: 0 1 auto;
+    min-width: 0;
   }
 
-  .tool {
-    flex: 1;
-    padding: 0 8px;
-    font-size: 0.86rem;
+  .brand h1 {
+    font-size: 1.05rem;
+    white-space: nowrap;
   }
 
-  .brand p {
-    display: none;
-  }
-
+  .brand p,
   .dock-label {
     display: none;
   }
 
-  .hint {
-    font-size: 0.68rem;
+  .tools {
+    flex: 1 1 auto;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .tool,
+  .brick-trigger,
+  .brick-btn,
+  .mode-tab,
+  .paint-tab,
+  .swatch,
+  .face-chip {
+    min-width: 48px;
+    min-height: 48px;
+  }
+
+  .tool {
+    flex: 0 1 auto;
+    padding: 0 10px;
+    font-size: 0.78rem;
+  }
+
+  .dock {
+    padding: 6px 8px 4px;
+  }
+
+  .dock-main {
+    gap: 6px;
+  }
+
+  .picker-row {
+    flex-wrap: nowrap;
+    gap: 6px;
+    min-width: 0;
   }
 
   .brick-picker {
-    max-width: none;
+    flex: 1 1 auto;
+    max-width: 168px;
+    min-width: 0;
+  }
+
+  .brick-trigger {
+    padding: 2px 10px 2px 6px;
+  }
+
+  .mode-switch {
+    flex: none;
   }
 
   .mode-tab {
-    padding: 0 10px;
+    padding: 0 12px;
+    font-size: 0.8rem;
+  }
+
+  .paint-picker {
+    flex-direction: row;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    touch-action: pan-x;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .paint-tabs,
+  .paint-body,
+  .paint-panels,
+  .paint-plain {
+    flex: none;
+  }
+
+  .paint-tab {
+    flex: none;
+    padding: 0 12px;
     font-size: 0.78rem;
+  }
+
+  .swatch {
+    width: 48px;
+    height: 48px;
+  }
+
+  .face-row,
+  .letter-board {
+    overflow: visible;
+    width: max-content;
+    max-width: none;
+  }
+
+  .letter-board {
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .color-row,
+  .face-row {
+    padding-bottom: 2px;
+  }
+
+  .hint {
+    margin: 2px 0 0;
+    font-size: 0.68rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .brick-menu {
     left: 0;
     right: 0;
     width: auto;
-    max-height: min(46vh, calc(100dvh - 220px));
+    max-height: min(46vh, calc(100dvh - 160px));
   }
 
   .brick-grid {
@@ -967,9 +1072,7 @@ body {
   }
 
   .brick-btn {
-    min-width: 0;
     width: auto;
-    min-height: 44px;
     padding: 4px 2px 3px;
   }
 
@@ -984,25 +1087,76 @@ body {
   }
 
   .toast {
-    top: calc(118px + env(safe-area-inset-top));
-    white-space: normal;
-    text-align: center;
+    top: calc(60px + env(safe-area-inset-top));
   }
 }
 
-@media (max-width: 360px) {
+@media (max-width: 780px) {
+  .sparkle {
+    display: none;
+  }
+
+  .brand {
+    min-width: 0;
+  }
+
+  .tool {
+    flex: 1 1 0;
+    padding: 0 4px;
+    font-size: 0.74rem;
+  }
+}
+
+/* Landscape and other short windows: tools sit beside the board, not on top of it. */
+@media (max-height: 520px) {
+  :root {
+    --side-dock: min(268px, 44vw);
+  }
+
+  .topbar {
+    right: calc(var(--side-dock) + 14px + env(safe-area-inset-right));
+  }
+
+  .dock {
+    top: calc(6px + env(safe-area-inset-top));
+    right: calc(6px + env(safe-area-inset-right));
+    bottom: calc(6px + env(safe-area-inset-bottom));
+    left: auto;
+    width: var(--side-dock);
+    padding: 8px;
+  }
+
+  .brick-picker {
+    max-width: none;
+  }
+
   .picker-row {
     flex-wrap: wrap;
   }
 
-  .brick-picker,
   .mode-switch {
-    flex: 1 1 100%;
-    max-width: none;
-    margin-left: 0;
+    flex: 1 1 auto;
   }
 
   .mode-tab {
     flex: 1;
+  }
+
+  .hint {
+    white-space: normal;
+  }
+
+  .brick-menu {
+    top: 0;
+    bottom: auto;
+    left: auto;
+    right: calc(100% + 8px);
+    width: min(420px, 54vw);
+    max-height: min(72dvh, 320px);
+  }
+
+  .toast {
+    left: calc((100% - var(--side-dock)) / 2);
+    max-width: min(68vw, 380px);
   }
 }

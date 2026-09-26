@@ -8,7 +8,9 @@ import { BASEPLATE_STUDS, PITCH, onBoard } from './bricks/dims.ts'
 import { footprintOrigin, rebuildCovers, seatOnCovers, type Cover } from './bricks/stack.ts'
 import { createBaseplate, createBrickGroup, disableRaycast, tagBrick } from './bricks/geometry.ts'
 import { createBurst, type Burst } from './fx/burst.ts'
+import { framingStep, hudInsets, useCompactFraming } from './frame.ts'
 import { loadBuild, saveBuild, type SavedBrick } from './persist.ts'
+import { undoStatus } from './status.ts'
 
 export type ToolMode = 'place' | 'delete'
 
@@ -143,13 +145,20 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   let userPinnedCloser = false
   let autoDistance = BASE_CAM_DIST
   let lastSeenTop = 0
+  /** setViewOffset shift that parks the board in the gap between the toolbars. */
+  let compactOffsetX = 0
+  let compactOffsetY = 0
+  let compactReady = false
+  let lastInsetKey = ''
   controls.addEventListener('start', () => {
     userDriving = true
   })
   controls.addEventListener('end', () => {
     userDriving = false
-    const { distance: needed } = neededFraming(tallestTop())
     const dist = camera.position.distanceTo(controls.target)
+    const needed = useCompactFraming(window.innerWidth, window.innerHeight)
+      ? autoDistance
+      : neededFraming(tallestTop()).distance
     userPinnedCloser = dist < needed - 8
   })
 
@@ -187,6 +196,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   const lockedBox = new THREE.Box3()
   const lockedHit = new THREE.Vector3()
   const screenCorner = new THREE.Vector3()
+  const framePoint = new THREE.Vector3()
 
   let kind: BrickKind = BrickKind.Brick2x2
   let colorId = DEFAULT_COLOR_ID
@@ -732,10 +742,103 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     camera.position.copy(controls.target).add(offset)
   }
 
+  function readInsets(width: number, height: number) {
+    const topbar = document.querySelector('.topbar')?.getBoundingClientRect() ?? null
+    const dock = document.querySelector('.dock')?.getBoundingClientRect() ?? null
+    return hudInsets({ width, height }, topbar, dock)
+  }
+
+  function measureBoard(width: number, height: number): { minX: number; maxX: number; minY: number; maxY: number } | null {
+    const half = (BASEPLATE_STUDS * PITCH) / 2
+    const yTop = Math.max(4, tallestTop())
+    let minX = Infinity
+    let minY = Infinity
+    let maxX = -Infinity
+    let maxY = -Infinity
+    let count = 0
+    for (const x of [-half, half]) {
+      for (const y of [0, yTop]) {
+        for (const z of [-half, half]) {
+          framePoint.set(x, y, z).project(camera)
+          if (framePoint.z > 1) continue
+          const sx = (framePoint.x * 0.5 + 0.5) * width
+          const sy = (-framePoint.y * 0.5 + 0.5) * height
+          if (!Number.isFinite(sx) || !Number.isFinite(sy)) continue
+          count += 1
+          minX = Math.min(minX, sx)
+          minY = Math.min(minY, sy)
+          maxX = Math.max(maxX, sx)
+          maxY = Math.max(maxY, sy)
+        }
+      }
+    }
+    if (count < 4) return null
+    return { minX, maxX, minY, maxY }
+  }
+
+  function clampDistance(distance: number): number {
+    return Math.max(controls.minDistance, Math.min(controls.maxDistance, distance))
+  }
+
+  function clearCompactOffset(): void {
+    if (camera.view?.enabled) camera.clearViewOffset()
+    compactOffsetX = 0
+    compactOffsetY = 0
+    compactReady = false
+    lastInsetKey = ''
+  }
+
+  /**
+   * Center the plate in the rectangle the toolbars leave open, and pull the
+   * camera so that rectangle is mostly board instead of sky.
+   */
+  function fitCompact(width: number, height: number): void {
+    const insets = readInsets(width, height)
+    const key = [width, height, insets.top, insets.right, insets.bottom, insets.left].map((n) => Math.round(n)).join('|')
+    const layoutChanged = key !== lastInsetKey
+    if (layoutChanged) userPinnedCloser = false
+    const snap = !compactReady || layoutChanged
+    lastInsetKey = key
+    compactReady = true
+
+    camera.lookAt(controls.target)
+    let dist = camera.position.distanceTo(controls.target)
+    const steps = snap ? 8 : 1
+    for (let i = 0; i < steps; i++) {
+      camera.setViewOffset(width, height, compactOffsetX, compactOffsetY, width, height)
+      camera.updateMatrixWorld()
+      const subject = measureBoard(width, height)
+      if (!subject) break
+      const step = framingStep({
+        offsetX: compactOffsetX,
+        offsetY: compactOffsetY,
+        distance: dist,
+        subject,
+        viewport: { width, height },
+        insets,
+      })
+      const alpha = snap ? 1 : 0.22
+      compactOffsetX += (step.offsetX - compactOffsetX) * alpha
+      compactOffsetY += (step.offsetY - compactOffsetY) * alpha
+      if (!userPinnedCloser) {
+        const desired = clampDistance(step.distance)
+        dist = snap ? desired : dist + (desired - dist) * 0.18
+        setOrbitDistance(dist)
+        camera.lookAt(controls.target)
+      }
+    }
+    camera.setViewOffset(width, height, compactOffsetX, compactOffsetY, width, height)
+    camera.updateMatrixWorld()
+    if (!userPinnedCloser) autoDistance = dist
+  }
+
   function easeFraming(): void {
+    const width = window.innerWidth
+    const height = window.innerHeight
     const top = tallestTop()
     const { distance: needed, targetY } = neededFraming(top)
-    controls.maxDistance = Math.max(BASE_MAX_DIST, needed + 120)
+    const compact = useCompactFraming(width, height)
+    controls.maxDistance = Math.max(BASE_MAX_DIST, needed + 120, compact ? 1600 : 0)
 
     if (userDriving || draggingLock) {
       lastSeenTop = top
@@ -744,7 +847,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
 
     const grew = top > lastSeenTop + 0.05
     lastSeenTop = top
-    if (grew && camera.position.distanceTo(controls.target) < needed - 1.5) {
+    if (grew && (compact || camera.position.distanceTo(controls.target) < needed - 1.5)) {
       userPinnedCloser = false
     }
 
@@ -753,6 +856,17 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     if (Math.abs(nextY - ty) > 0.02) {
       camera.position.y += nextY - ty
       controls.target.y = nextY
+    }
+
+    if (compact) {
+      fitCompact(width, height)
+      return
+    }
+
+    if (camera.view?.enabled) clearCompactOffset()
+    if (camera.aspect !== width / height) {
+      camera.aspect = width / height
+      camera.updateProjectionMatrix()
     }
 
     const dist = camera.position.distanceTo(controls.target)
@@ -770,9 +884,13 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   function onResize(): void {
     const w = window.innerWidth
     const h = window.innerHeight
-    camera.aspect = w / h
-    camera.updateProjectionMatrix()
     renderer.setSize(w, h, false)
+    compactReady = false
+    if (!useCompactFraming(w, h)) {
+      clearCompactOffset()
+      camera.aspect = w / h
+      camera.updateProjectionMatrix()
+    }
   }
 
   function finishBurst(): void {
@@ -889,7 +1007,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
       if (ghost) ghost.visible = false
       const action = undoStack.pop()
       if (!action) {
-        hud.toast('Nothing to undo')
+        hud.toast(undoStatus(null))
         hud.onChange()
         return
       }
@@ -901,6 +1019,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
       }
       persist()
       playPop(true)
+      hud.toast(undoStatus(action.type))
     },
     clear() {
       if (exploding) return

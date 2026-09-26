@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "check": "node --experimental-strip-types src/bricks/stack.check.ts && node --experimental-strip-types src/frame.check.ts && node --experimental-strip-types src/status.check.ts"
   },
   "devDependencies": {
     "typescript": "~6.0.2",

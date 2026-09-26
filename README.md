@@ -4,7 +4,7 @@ A kid-friendly 3D brick builder for **Joe Schneider**. Pick a chunky brick, pick
 
 Bricks use **Duplo-compatible proportions** (about 2× System scale: 16-unit stud pitch, brick height 19.2, plates at half a brick so two plates equal one brick, hollow studs). Special pieces follow real part proportions: a 2×4×2 inside-bow arch, a chunky 2×2×1½ roof slope, and a 2×2×2 round cylinder with four studs. Geometry is procedural Three.js — no STL or official brick assets.
 
-**Not affiliated with the LEGO Group or the DUPLO brand.** Those names appear only so you know the *scale* this toy aims for. Face, number, and letter stickers are original. They are not LEGO or DUPLO prints.
+**Not affiliated with the LEGO Group or the DUPLO brand.** Those names appear only so you know the *scale* this toy aims for. Face, number, and letter stickers are original. They are not LEGO or DUPLO prints. Number and letter prints are set in **Fredoka Bold**, bundled at `public/fonts/Fredoka-Bold.woff2` under the [SIL Open Font License](public/fonts/Fredoka-OFL.txt).
 
 ## Play
 

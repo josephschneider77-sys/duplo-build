@@ -3,7 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js'
 import { playBurst, playPop } from './audio.ts'
 import { BrickKind, brickAcceptsFace, defFor, footprint, type BrickDef } from './bricks/catalog.ts'
 import { colorById, DEFAULT_COLOR_ID } from './bricks/colors.ts'
-import { DEFAULT_PAINT_ID, isPaintId } from './bricks/paints.ts'
+import { DEFAULT_PAINT_ID, isPaintId, setStickerAnisotropy } from './bricks/paints.ts'
 import { BASEPLATE_STUDS, PITCH, onBoard } from './bricks/dims.ts'
 import { footprintOrigin, rebuildCovers, seatOnCovers, type Cover } from './bricks/stack.ts'
 import { createBaseplate, createBrickGroup, disableRaycast, tagBrick } from './bricks/geometry.ts'
@@ -107,6 +107,7 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
   renderer.toneMapping = THREE.ACESFilmicToneMapping
   renderer.toneMappingExposure = 1.05
   renderer.setClearColor(0xd9c4ff, 1)
+  setStickerAnisotropy(renderer.capabilities.getMaxAnisotropy())
 
   const scene = new THREE.Scene()
   // Fog distances tracked the 24-stud plate. Scale with the plate so the
@@ -250,7 +251,10 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
 
   function addPlaced(data: SavedBrick, recordUndo: boolean): void {
     const def = defFor(data.kind)
-    const mesh = createBrickGroup(def, colorById(data.colorId).hex, { paintId: data.paintId })
+    const mesh = createBrickGroup(def, colorById(data.colorId).hex, {
+      paintId: data.paintId,
+      colorId: data.colorId,
+    })
     tagBrick(mesh, data.id)
     poseMesh(mesh, def, data.ox, data.oz, data.y, data.rot)
     scene.add(mesh)
@@ -357,7 +361,12 @@ export function createWorld(canvas: HTMLCanvasElement, hud: HudBridge): WorldApi
     ghostValid = true
     if (mode !== 'place') return
     const def = defFor(kind)
-    ghost = createBrickGroup(def, colorById(colorId).hex, { ghost: true, valid: true, paintId })
+    ghost = createBrickGroup(def, colorById(colorId).hex, {
+      ghost: true,
+      valid: true,
+      paintId,
+      colorId,
+    })
     disableRaycast(ghost)
     ghost.visible = false
     scene.add(ghost)

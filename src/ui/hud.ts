@@ -1,5 +1,6 @@
 import { BRICK_CATALOG, brickAcceptsFace, defFor, type BrickKind } from '../bricks/catalog.ts'
 import { BRICK_COLORS } from '../bricks/colors.ts'
+import { drawStickerGlyph } from '../bricks/glyphs.ts'
 import { FACE_SKIP_TIP, PAINT_GROUPS, isPaintGroup, paintsInGroup, drawFace, type PaintGroup, type PaintId } from '../bricks/paints.ts'
 import type { WorldApi } from '../world.ts'
 
@@ -19,6 +20,8 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
   const currentLabel = root.querySelector<HTMLElement>('[data-current-label]')
   let toastTimer = 0
   let clearArmed = false
+  let markColor = ''
+  const markChips: { canvas: HTMLCanvasElement; paintId: string }[] = []
 
   const brickBox = root.querySelector('[data-bricks]')
   if (brickBox && brickBox.childElementCount === 0) {
@@ -88,13 +91,35 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
       const ctx = thumb.getContext('2d')
       if (ctx) drawFace(ctx, paint.id, thumb.width)
       btn.append(thumb)
+    } else if (kind === 'mark') {
+      const thumb = document.createElement('canvas')
+      // Same 313:192 aspect as the 2×2 face, so the preview is not stretched.
+      thumb.width = 313 * 2
+      thumb.height = 192 * 2
+      thumb.className = 'face-chip-art'
+      thumb.setAttribute('aria-hidden', 'true')
+      markChips.push({ canvas: thumb, paintId: paint.id })
+      paintMark(thumb, paint.id, world.getColorId())
+      btn.append(thumb)
     } else {
       const label = document.createElement('span')
-      label.className = kind === 'plain' ? 'face-chip-label' : 'face-chip-mark'
+      label.className = 'face-chip-label'
       label.textContent = paint.label
       btn.append(label)
     }
     return btn
+  }
+
+  function paintMark(canvas: HTMLCanvasElement, paintId: string, colorId: string): void {
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    drawStickerGlyph(ctx, paintId, colorId, canvas.width, canvas.height, { backdrop: true })
+  }
+
+  function syncMarkChips(colorId: string): void {
+    if (markColor === colorId) return
+    markColor = colorId
+    for (const chip of markChips) paintMark(chip.canvas, chip.paintId, colorId)
   }
 
   function brickButtons(): HTMLButtonElement[] {
@@ -180,6 +205,7 @@ export function mountHud(root: HTMLElement, world: WorldApi): { refresh: () => v
     const kind = world.getKind()
     const colorId = world.getColorId()
     const paintId = world.getPaintId()
+    syncMarkChips(colorId)
     const mode = world.getMode()
     const def = defFor(kind)
     root.dataset.mode = mode
